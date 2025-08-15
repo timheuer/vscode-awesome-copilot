@@ -1,0 +1,110 @@
+{
+  "name": "awesome-copilot",
+  "displayName": "Awesome Copilot",
+  "publisher": "timheuer",
+  "author": {
+    "name": "Tim Heuer"
+  },
+  "bugs": {
+    "url": "https://github.com/timheuer/vscode-awesome-copilot/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timheuer/vscode-awesome-copilot"
+  },
+  "qna": "https://github.com/timheuer/vscode-awesome-copilot/issues",
+  "homepage": "https://github.com/timheuer/vscode-awesome-copilot",
+  "description": "Browse and download instructions, prompts, and chat modes from the Awesome Copilot community",
+  "version": "0.0.0-placeholder",
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "awesome-copilot.refreshAwesomeCopilot",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "awesome-copilot.downloadItem",
+        "title": "Download",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "awesome-copilot.previewItem",
+        "title": "Preview",
+        "icon": "$(open-preview)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "awesomeCopilotExplorer",
+          "name": "Awesome Copilot",
+          "when": "true",
+          "icon": "$(copilot)"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "awesome-copilot.refreshAwesomeCopilot",
+          "when": "view == awesomeCopilotExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "awesome-copilot.downloadItem",
+          "when": "view == awesomeCopilotExplorer && viewItem == copilotFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "awesome-copilot.previewItem",
+          "when": "view == awesomeCopilotExplorer && viewItem == copilotFile",
+          "group": "inline@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "deploy": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.103.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.8.3",
+    "nerdbank-gitversioning": "^3.6.133"
+  },
+  "dependencies": {
+    "axios": "^1.11.0"
+  }
+}

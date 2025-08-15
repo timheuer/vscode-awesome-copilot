@@ -1,0 +1,75 @@
+name: Build and Publish
+
+on:
+  workflow_dispatch:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🎁 Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: 🖥️ Install cross-env
+        run: npm install -g cross-env
+
+      - name: 🏷️ NBGV
+        uses: dotnet/nbgv@master
+        id: nbgv
+        with:
+          stamp: package.json
+
+      - name: 🗣️ NBGV outputs
+        run: |
+          echo "SimpleVersion: ${{ steps.nbgv.outputs.SimpleVersion }}"
+
+      - name: 📦 Package
+        run: |
+          vsce package -o ./${{ github.event.repository.name}}.vsix
+
+      - name: 📰 Publish
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: npm run deploy
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: ⬆️ Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name}}.vsix
+          path: ./*.vsix
+
+      - name: 🏷️ Tag and Release
+        id: tag_release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: Release ${{ steps.nbgv.outputs.SimpleVersion }}
+          tag_name: ${{ steps.nbgv.outputs.SimpleVersion }}
+          generate_release_notes: true
+          files: ./*.vsix
