@@ -20,6 +20,18 @@
   "engines": {
     "vscode": "^1.103.0"
   },
+    "badges": [
+    {
+      "url": "https://img.shields.io/visual-studio-marketplace/v/timheuer.vscode-awesome-copilot?label=VS%20Code%20Marketplace&color=brightgreen&logo=visualstudiocode",
+      "href": "https://marketplace.visualstudio.com/items?itemName=TimHeuer.vscode-awesome-copilot",
+      "description": "Current Version"
+    },
+    {
+      "url": "https://github.com/timheuer/vscode-awesome-copilot/actions/workflows/build.yaml/badge.svg",
+      "href": "https://github.com/timheuer/vscode-awesome-copilot/actions/workflows/build.yaml",
+      "description": "Build Status"
+    }
+  ],
   "categories": [
     "Other"
   ],
