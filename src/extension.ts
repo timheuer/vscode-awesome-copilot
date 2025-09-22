@@ -7,10 +7,318 @@ import { CopilotPreviewProvider } from './previewProvider';
 import { CopilotItem, FOLDER_PATHS, CopilotCategory } from './types';
 import * as path from 'path';
 import * as fs from 'fs';
+import { RepoStorage } from './repoStorage';
+import axios from 'axios';
+import * as https from 'https';
 
+// Create HTTPS agent with robust SSL handling (following VS Code Git extension pattern)
+function createHttpsAgent(url: string): https.Agent | undefined {
+	try {
+		// If it's not github.com, treat as enterprise
+		const isEnterprise = !url.includes('github.com');
+		
+		if (isEnterprise) {
+			// For enterprise GitHub servers, use more permissive SSL options
+			return new https.Agent({
+				rejectUnauthorized: false,
+				// Allow self-signed certificates
+				checkServerIdentity: () => undefined,
+				// Keep connections alive
+				keepAlive: true,
+				maxSockets: 5
+			});
+		}
+	} catch (error) {
+		console.warn('Failed to create HTTPS agent, using default:', error);
+	}
+	
+	return undefined;
+}
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
+
+	// 🔒 全局SSL证书处理 - 针对企业GitHub环境
+	// 检查是否需要禁用SSL验证（仅在开发/测试环境或检测到企业GitHub时）
+	const currentSources = RepoStorage.getSources(context);
+	const hasEnterpriseRepo = currentSources.some((repo: any) => repo.baseUrl);
+	
+	if (hasEnterpriseRepo || process.env.NODE_ENV !== 'production') {
+		// 全局禁用SSL验证，解决自签名证书问题
+		process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = '0';
+		console.log('🔒 SSL verification disabled for enterprise GitHub compatibility');
+	}
+
+	// Register manage sources command (UI entry point)
+	// Static imports for ESM/TS compatibility
+
+	const manageSourcesDisposable = vscode.commands.registerCommand('awesome-copilot.manageSources', async () => {
+		// Main quick pick menu
+		let sources = RepoStorage.getSources(context);
+		while (true) {
+			const pick = await vscode.window.showQuickPick([
+				{ label: 'Add Repository', description: 'Add a new public GitHub repo as a source' },
+				{ label: 'Remove Repository', description: 'Remove a repo from sources' },
+				{ label: 'Reset to Default', description: 'Restore default source list' },
+				{ label: 'View Sources', description: sources.map((s: any) => `${s.owner}/${s.repo}`).join(', ') },
+				{ label: 'Done', description: 'Exit' }
+			], { placeHolder: 'Manage Copilot Sources' });
+			if (!pick || pick.label === 'Done') {break;}
+			if (pick.label === 'Add Repository') {
+				const input = await vscode.window.showInputBox({
+					prompt: 'Enter GitHub repo (owner/repo or full URL)',
+					validateInput: (val: string) => {
+						if (!val || !val.trim()) {return 'Repository required';}
+						return null;
+					}
+				});
+				if (!input) {continue;}
+				// Parse input - support GitHub Enterprise URLs
+				let owner = '', repo = '', baseUrl = '';
+				try {
+					if (input.startsWith('http')) {
+						// Enhanced URL parsing for enterprise GitHub
+						const urlMatch = input.match(/https?:\/\/([^\/]+)\/(.+?)\/(.+?)(?:\/.*)?$/);
+						if (urlMatch) {
+							const domain = urlMatch[1];
+							owner = urlMatch[2];
+							repo = urlMatch[3].replace(/\.git$/, ''); // Remove .git suffix if present
+							
+							// If not github.com, it's GitHub Enterprise
+							if (domain !== 'github.com') {
+								baseUrl = `https://${domain}`;
+							}
+						} else {
+							throw new Error('Invalid URL format');
+						}
+					} else if (input.includes('/')) {
+						const parts = input.split('/').filter(p => p.trim());
+						if (parts.length >= 2) {
+							owner = parts[0].trim();
+							repo = parts[1].trim().replace(/\.git$/, ''); // Remove .git suffix if present
+						}
+					}
+				} catch (parseError) {
+					console.error('URL parsing error:', parseError);
+				}
+				if (!owner || !repo) {
+					vscode.window.showErrorMessage('Invalid repository format. Use owner/repo or full URL.');
+					continue;
+				}
+				// Check for duplicate
+				if (sources.some((s: any) => s.owner === owner && s.repo === repo)) {
+					vscode.window.showWarningMessage('Repository already added.');
+					continue;
+				}
+				// For enterprise GitHub, show info message
+				if (baseUrl) {
+					const enterpriseUrl = `${baseUrl}/${owner}/${repo}`;
+					vscode.window.showInformationMessage(
+						`🔐 Enterprise GitHub Detected: ${enterpriseUrl}\n\nPlease ensure you have configured your Personal Access Token using "Configure Enterprise Token" command.`
+					);
+				}
+
+				// Validate repo structure (basic: check folders exist)
+				try {
+					const cats = ['chatmodes', 'instructions', 'prompts'];
+					let valid = true;
+					
+					// Show progress for enterprise repos
+					if (baseUrl) {
+						vscode.window.showInformationMessage(`🔍 Validating repository structure for ${owner}/${repo}...`);
+					}
+					
+					for (const cat of cats) {
+						// Build correct API URL for GitHub or GitHub Enterprise
+						let apiUrl: string;
+						if (baseUrl) {
+							apiUrl = `${baseUrl}/api/v3/repos/${owner}/${repo}/contents/${cat}`;
+						} else {
+							apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cat}`;
+						}
+						
+						const headers: Record<string, string> = {
+							'User-Agent': 'VSCode-AwesomeCopilot-Extension',
+							'Accept': 'application/vnd.github.v3+json'
+						};
+						
+						if (baseUrl) {
+							// Enhanced enterprise GitHub auth headers
+							headers['X-Requested-With'] = 'VSCode-Extension';
+							headers['Accept-Encoding'] = 'gzip, deflate, br';
+							headers['Accept-Language'] = 'en-US,en;q=0.9';
+							headers['Cache-Control'] = 'no-cache';
+							headers['Pragma'] = 'no-cache';
+							headers['Sec-Fetch-Dest'] = 'empty';
+							headers['Sec-Fetch-Mode'] = 'cors';
+							headers['Sec-Fetch-Site'] = 'same-origin';
+							
+							// Priority 1: Check for configured enterprise token
+							const config = vscode.workspace.getConfiguration('awesome-copilot');
+							const enterpriseToken = config.get<string>('enterpriseToken');
+							
+							if (enterpriseToken) {
+								headers['Authorization'] = `token ${enterpriseToken}`;
+								console.log('🔑 Using configured enterprise GitHub token');
+							} else {
+								// Priority 2: Try VS Code's authentication provider
+								try {
+									const session = await vscode.authentication.getSession('github', [], { 
+										createIfNone: false,
+										silent: true 
+									});
+									if (session && session.accessToken) {
+										headers['Authorization'] = `token ${session.accessToken}`;
+										console.log('🔑 Using VS Code GitHub authentication');
+									} else {
+										console.log('📝 No authentication available - please configure enterprise token');
+									}
+								} catch (authError) {
+									console.log('📝 VS Code GitHub auth not available - please configure enterprise token');
+								}
+							}
+						}
+						
+						// Enhanced SSL handling with debugging
+						const httpsAgent = createHttpsAgent(apiUrl);
+						
+						// Debug logging for SSL handling
+						if (baseUrl) {
+							console.log('Enterprise GitHub detected:', baseUrl);
+							console.log('API URL:', apiUrl);
+							console.log('HTTPS Agent created:', !!httpsAgent);
+						}
+						
+						const resp = await axios.get(apiUrl, { 
+							headers: headers,
+							timeout: 10000, // Increased timeout for enterprise
+							// Use robust SSL handling
+							httpsAgent: httpsAgent,
+							// For enterprise GitHub, allow cookies for authentication
+							withCredentials: !!baseUrl,
+							// Additional SSL options for axios
+							...(baseUrl && {
+								// Force ignore SSL errors at axios level too
+								rejectUnauthorized: false,
+								requestCert: false,
+								agent: false
+							})
+						});
+						if (!Array.isArray(resp.data)) { valid = false; break; }
+					}
+					if (!valid) {throw new Error('Missing required folders (chatmodes, instructions, prompts)');}
+					
+					// Create repo source object with baseUrl if needed
+					const repoSource = baseUrl ? { owner, repo, baseUrl } : { owner, repo };
+					sources.push(repoSource);
+					await RepoStorage.setSources(context, sources);
+					
+					const displayUrl = baseUrl ? `${baseUrl}/${owner}/${repo}` : `${owner}/${repo}`;
+					vscode.window.showInformationMessage(`✅ Successfully added: ${displayUrl}`);
+					
+				} catch (err: any) {
+					// Enhanced error handling with detailed diagnostics
+					const errorMessage = (err && err.message) || err;
+					const statusCode = err.response?.status;
+					const responseData = err.response?.data;
+					
+					console.error('Repository validation error:', {
+						error: errorMessage,
+						statusCode,
+						responseData,
+						owner,
+						repo,
+						baseUrl,
+						apiUrl: baseUrl ? `${baseUrl}/api/v3/repos/${owner}/${repo}/contents/` : `https://api.github.com/repos/${owner}/${repo}/contents/`
+					});
+					
+					if (statusCode === 404) {
+						// 404 Not Found - Repository or path doesn't exist
+						const repoUrl = baseUrl ? `${baseUrl}/${owner}/${repo}` : `https://github.com/${owner}/${repo}`;
+						const retryChoice = await vscode.window.showErrorMessage(
+							`🔍 Repository Not Found (404)\n\nThe repository ${owner}/${repo} was not found or doesn't contain the required folders (chatmodes, instructions, prompts).\n\nPlease verify:\n1. Repository exists at: ${repoUrl}\n2. Repository is public or you have access\n3. Repository contains the required folder structure`,
+							'Check Repository',
+							'Retry',
+							'Cancel'
+						);
+						
+						if (retryChoice === 'Check Repository') {
+							await vscode.env.openExternal(vscode.Uri.parse(repoUrl));
+						} else if (retryChoice === 'Retry') {
+							continue;
+						}
+					} else if (baseUrl && (statusCode === 401 || errorMessage.includes('401') || errorMessage.includes('Unauthorized'))) {
+						// Authentication error for enterprise GitHub
+						const retryChoice = await vscode.window.showErrorMessage(
+							`🔐 Authentication Required (401)\n\nFailed to access ${baseUrl}/${owner}/${repo}.\n\nPlease configure your Personal Access Token using "Configure Enterprise Token" command.`,
+							'Configure Token',
+							'Retry',
+							'Cancel'
+						);
+						
+						if (retryChoice === 'Configure Token') {
+							// Run the token configuration command
+							await vscode.commands.executeCommand('awesome-copilot.configureEnterpriseToken');
+						} else if (retryChoice === 'Retry') {
+							// Let user try again in the main loop
+							continue;
+						}
+					} else if (statusCode === 403) {
+						// Forbidden - Rate limit or access denied
+						const retryChoice = await vscode.window.showErrorMessage(
+							`🚫 Access Forbidden (403)\n\nAccess to ${owner}/${repo} is forbidden. This could be due to:\n1. Repository is private and you don't have access\n2. API rate limit exceeded\n3. Token doesn't have required permissions`,
+							'Configure Token',
+							'Retry',
+							'Cancel'
+						);
+						
+						if (retryChoice === 'Configure Token') {
+							await vscode.commands.executeCommand('awesome-copilot.configureEnterpriseToken');
+						} else if (retryChoice === 'Retry') {
+							continue;
+						}
+					} else {
+						// Other errors
+						vscode.window.showErrorMessage(`❌ Failed to add repository: ${errorMessage}${statusCode ? ` (${statusCode})` : ''}`);
+					}
+				}
+			} else if (pick.label === 'Remove Repository') {
+				if (sources.length === 1) {
+					vscode.window.showWarningMessage('At least one source is required.');
+					continue;
+				}
+				const toRemove = await vscode.window.showQuickPick(
+					sources.map((s: any) => ({ label: `${s.owner}/${s.repo}`, source: s })),
+					{ placeHolder: 'Select a repo to remove' }
+				);
+				if (!toRemove) {continue;}
+				
+				// Clear cache for the repository being removed
+				githubService.clearRepoCache(toRemove.source);
+				
+				sources = sources.filter((s: any) => `${s.owner}/${s.repo}` !== toRemove.label);
+				await RepoStorage.setSources(context, sources);
+				
+				// Refresh the tree provider to update the UI
+				treeProvider.refresh();
+				
+				vscode.window.showInformationMessage(`Removed source: ${toRemove.label}`);
+			} else if (pick.label === 'Reset to Default') {
+				// Clear all cache before resetting
+				githubService.clearCache();
+				
+				sources = RepoStorage.getDefaultSources();
+				await RepoStorage.setSources(context, sources);
+				
+				// Refresh the tree provider to update the UI
+				treeProvider.refresh();
+				
+				vscode.window.showInformationMessage('Sources reset to default.');
+			} else if (pick.label === 'View Sources') {
+				vscode.window.showInformationMessage('Current sources: ' + sources.map((s: any) => `${s.owner}/${s.repo}`).join(', '));
+			}
+		}
+	});
 
 	// Use the console to output diagnostic information (console.log) and errors (console.error)
 	// This line of code will only be executed once when your extension is activated
@@ -18,8 +326,18 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Initialize services
 	const githubService = new GitHubService();
-	const treeProvider = new AwesomeCopilotProvider(githubService);
+	const treeProvider = new AwesomeCopilotProvider(githubService, context);
 	const previewProvider = new CopilotPreviewProvider();
+
+	// Initialize repository sources from settings
+	await RepoStorage.initializeFromSettings(context);
+
+	// Listen for configuration changes
+	const configChangeDisposable = RepoStorage.onConfigurationChanged(context, () => {
+		// Refresh tree view when configuration changes
+		treeProvider.refresh();
+		vscode.window.showInformationMessage('Repository sources updated from settings');
+	});
 
 	// Register providers
 	const treeView = vscode.window.createTreeView('awesomeCopilotExplorer', {
@@ -63,10 +381,155 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Register repository-specific commands
+	const removeRepoDisposable = vscode.commands.registerCommand('awesome-copilot.removeRepo', async (treeItem: AwesomeCopilotTreeItem) => {
+		if (treeItem.itemType === 'repo' && treeItem.repo) {
+			const repo = treeItem.repo;
+			const confirm = await vscode.window.showWarningMessage(
+				`Remove repository ${repo.owner}/${repo.repo}?`,
+				{ modal: true },
+				'Remove'
+			);
+			
+			if (confirm === 'Remove') {
+				let sources = RepoStorage.getSources(context);
+				if (sources.length <= 1) {
+					vscode.window.showWarningMessage('At least one repository source is required.');
+					return;
+				}
+				
+				// Clear cache for the repository being removed
+				githubService.clearRepoCache(repo);
+				
+				sources = sources.filter(s => !(s.owner === repo.owner && s.repo === repo.repo));
+				await RepoStorage.setSources(context, sources);
+				treeProvider.refresh();
+				vscode.window.showInformationMessage(`Removed repository: ${repo.owner}/${repo.repo}`);
+			}
+		}
+	});
+
+	const refreshRepoDisposable = vscode.commands.registerCommand('awesome-copilot.refreshRepo', async (treeItem: AwesomeCopilotTreeItem) => {
+		if (treeItem.itemType === 'repo' && treeItem.repo) {
+			const repo = treeItem.repo;
+			// Clear cache for this repository
+			githubService.clearCache();
+			treeProvider.refresh();
+			vscode.window.showInformationMessage(`Refreshed repository: ${repo.owner}/${repo.repo}`);
+		}
+	});
+
+	// Register token configuration command
+	const configTokenDisposable = vscode.commands.registerCommand('awesome-copilot.configureEnterpriseToken', async () => {
+		const token = await vscode.window.showInputBox({
+			prompt: 'Enter your Enterprise GitHub Personal Access Token',
+			password: true,
+			placeHolder: 'ghp_xxxxxxxxxxxxxxxxxxxx',
+			ignoreFocusOut: true,
+			validateInput: (value) => {
+				if (!value || value.trim() === '') {
+					return 'Token cannot be empty';
+				}
+				if (!value.startsWith('ghp_') && !value.startsWith('gho_') && !value.startsWith('ghu_')) {
+					return 'Invalid token format. GitHub tokens typically start with ghp_, gho_, or ghu_';
+				}
+				return null;
+			}
+		});
+		
+		if (token) {
+			const config = vscode.workspace.getConfiguration('awesome-copilot');
+			await config.update('enterpriseToken', token, vscode.ConfigurationTarget.Global);
+			vscode.window.showInformationMessage('🔑 Enterprise GitHub token configured successfully!');
+		}
+	});
+
+	// Register clear token command
+	const clearTokenDisposable = vscode.commands.registerCommand('awesome-copilot.clearEnterpriseToken', async () => {
+		const confirm = await vscode.window.showWarningMessage(
+			'Clear Enterprise GitHub token?',
+			{ modal: true },
+			'Clear'
+		);
+		
+		if (confirm === 'Clear') {
+			const config = vscode.workspace.getConfiguration('awesome-copilot');
+			await config.update('enterpriseToken', undefined, vscode.ConfigurationTarget.Global);
+			vscode.window.showInformationMessage('Enterprise GitHub token cleared');
+		}
+	});
+
+	// Register show configured repositories command
+	const showReposDisposable = vscode.commands.registerCommand('awesome-copilot.showConfiguredRepos', async () => {
+		const sources = RepoStorage.getSources(context);
+		const config = vscode.workspace.getConfiguration('awesome-copilot');
+		const enterpriseToken = config.get<string>('enterpriseToken');
+		
+		if (sources.length === 0) {
+			vscode.window.showInformationMessage('No repositories configured');
+			return;
+		}
+		
+		const repoList = sources.map((repo: any, index: number) => {
+			const repoUrl = repo.baseUrl ? `${repo.baseUrl}/${repo.owner}/${repo.repo}` : `https://github.com/${repo.owner}/${repo.repo}`;
+			const type = repo.baseUrl ? '[Enterprise]' : '[GitHub.com]';
+			return `${index + 1}. ${repo.label || `${repo.owner}/${repo.repo}`} ${type}\n   ${repoUrl}`;
+		}).join('\n\n');
+		
+		const authStatus = enterpriseToken ? '🔑 Enterprise Token: Configured' : '⚠️ Enterprise Token: Not configured';
+		
+		const message = `**Configured Repositories (${sources.length}):**\n\n${repoList}\n\n**Authentication:**\n${authStatus}`;
+		
+		const choice = await vscode.window.showInformationMessage(
+			message,
+			{ modal: true },
+			'Open Settings',
+			'Manage Sources',
+			'OK'
+		);
+		
+		if (choice === 'Open Settings') {
+			await vscode.commands.executeCommand('workbench.action.openSettings', 'awesome-copilot.repositories');
+		} else if (choice === 'Manage Sources') {
+			await vscode.commands.executeCommand('awesome-copilot.manageSources');
+		}
+	});
+
+	// Register tree view visibility commands
+	const toggleTreeViewDisposable = vscode.commands.registerCommand('awesome-copilot.toggleTreeView', async () => {
+		const config = vscode.workspace.getConfiguration('awesome-copilot');
+		const currentValue = config.get<boolean>('showTreeView', true);
+		await config.update('showTreeView', !currentValue, vscode.ConfigurationTarget.Global);
+		const newState = !currentValue ? 'shown' : 'hidden';
+		vscode.window.showInformationMessage(`Awesome Copilot tree view ${newState}`);
+	});
+
+	const showTreeViewDisposable = vscode.commands.registerCommand('awesome-copilot.showTreeView', async () => {
+		const config = vscode.workspace.getConfiguration('awesome-copilot');
+		await config.update('showTreeView', true, vscode.ConfigurationTarget.Global);
+		vscode.window.showInformationMessage('Awesome Copilot tree view shown');
+	});
+
+	const hideTreeViewDisposable = vscode.commands.registerCommand('awesome-copilot.hideTreeView', async () => {
+		const config = vscode.workspace.getConfiguration('awesome-copilot');
+		await config.update('showTreeView', false, vscode.ConfigurationTarget.Global);
+		vscode.window.showInformationMessage('Awesome Copilot tree view hidden');
+	});
+
 	context.subscriptions.push(
 		refreshDisposable,
 		downloadDisposable,
 		previewDisposable,
+		manageSourcesDisposable,
+		removeRepoDisposable,
+		refreshRepoDisposable,
+		configTokenDisposable,
+		clearTokenDisposable,
+		showReposDisposable,
+		toggleTreeViewDisposable,
+		showTreeViewDisposable,
+		hideTreeViewDisposable,
+		configChangeDisposable,
 		treeView,
 		previewProviderDisposable
 	);

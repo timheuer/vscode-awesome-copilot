@@ -2,12 +2,24 @@
  * Types and interfaces for the Awesome Copilot Browser extension
  */
 
+
+// Represents a file in a GitHub repo
 export interface GitHubFile {
     name: string;
     path: string;
     download_url: string;
     size: number;
     type: 'file' | 'dir';
+    repo?: RepoSource; // Optional: which repo this file comes from
+}
+
+
+// Represents a GitHub repo source
+export interface RepoSource {
+    owner: string;
+    repo: string;
+    label?: string;
+    baseUrl?: string; // For GitHub Enterprise: https://github.wdf.sap.corp
 }
 
 export interface CopilotItem {
@@ -16,6 +28,7 @@ export interface CopilotItem {
     category: CopilotCategory;
     file: GitHubFile;
     content?: string;
+    repo: RepoSource;
 }
 
 export enum CopilotCategory {
@@ -24,10 +37,13 @@ export enum CopilotCategory {
     Prompts = 'prompts'
 }
 
+
+// Cache per repo+category
 export interface CacheEntry {
     data: GitHubFile[];
     timestamp: number;
     category: CopilotCategory;
+    repo: RepoSource;
 }
 
 export const CATEGORY_LABELS: Record<CopilotCategory, string> = {
