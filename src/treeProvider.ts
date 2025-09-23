@@ -173,8 +173,19 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 }));
                 repoData.set(category, items);
                 this._onDidChangeTreeData.fire();
-            } catch (error) {
-                vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
+            } catch (error: any) {
+                // Handle different types of errors
+                const statusCode = error?.response?.status || (error?.message?.includes('404') ? 404 : undefined);
+                
+                if (statusCode === 404) {
+                    // 404 is expected when a repository doesn't have a particular category folder
+                    // Set empty array and don't show error to user
+                    repoData.set(category, []);
+                    console.log(`Category '${category}' not found in ${repoKey} (this is normal)`);
+                } else {
+                    // Show error for other types of errors (auth, network, etc.)
+                    vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
+                }
                 return [];
             } finally {
                 this.loading.delete(loadingKey);
@@ -211,8 +222,19 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                         repo: repo
                     }));
                     repoData.set(category, items);
-                } catch (error) {
-                    vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
+                } catch (error: any) {
+                    // Handle different types of errors
+                    const statusCode = error?.response?.status || (error?.message?.includes('404') ? 404 : undefined);
+                    
+                    if (statusCode === 404) {
+                        // 404 is expected when a repository doesn't have a particular category folder
+                        // Set empty array and don't show error to user
+                        repoData.set(category, []);
+                        console.log(`Category '${category}' not found in ${repoKey} (this is normal)`);
+                    } else {
+                        // Show error for other types of errors (auth, network, etc.)
+                        vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
+                    }
                 }
             }
         }

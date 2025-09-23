@@ -153,17 +153,19 @@ export async function activate(context: vscode.ExtensionContext) {
 					);
 				}
 
-				// Validate repo structure (basic: check folders exist)
+				// Validate repo structure (check that at least one content folder exists)
 				try {
 					const cats = ['chatmodes', 'instructions', 'prompts'];
-					let valid = true;
+					const foundFolders: string[] = [];
+					const missingFolders: string[] = [];
 
 					// Show progress for enterprise repos
 					if (baseUrl) {
 						vscode.window.showInformationMessage(`🔍 Validating repository structure for ${owner}/${repo}...`);
 					}
 
-					for (const cat of cats) {
+					// Helper function to check if a folder exists
+					const checkFolder = async (cat: string): Promise<boolean> => {
 						// Build correct API URL for GitHub or GitHub Enterprise
 						let apiUrl: string;
 						if (baseUrl) {
@@ -270,31 +272,56 @@ export async function activate(context: vscode.ExtensionContext) {
 						console.log('🔧 [VALIDATION] axiosConfig contains httpsAgent:', !!axiosConfig.httpsAgent);
 						console.log('🔧 [VALIDATION] axiosConfig contains agent:', !!axiosConfig.agent);
 
-						let resp;
-						if (baseUrl && allowInsecureEnterpriseCerts) {
-							// Temporary global TLS override for this specific enterprise request
-							console.log('🔧 [WORKAROUND] Applying global TLS override for enterprise GitHub request');
-							const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-							process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+						try {
+							let resp;
+							if (baseUrl && allowInsecureEnterpriseCerts) {
+								// Temporary global TLS override for this specific enterprise request
+								console.log('🔧 [WORKAROUND] Applying global TLS override for enterprise GitHub request');
+								const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+								process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-							try {
-								resp = await axios.get(apiUrl, axiosConfig);
-								console.log('🔧 [WORKAROUND] Enterprise request succeeded with global TLS override');
-							} finally {
-								// Restore original setting immediately
-								if (originalRejectUnauthorized === undefined) {
-									delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-								} else {
-									process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+								try {
+									resp = await axios.get(apiUrl, axiosConfig);
+									console.log('🔧 [WORKAROUND] Enterprise request succeeded with global TLS override');
+								} finally {
+									// Restore original setting immediately
+									if (originalRejectUnauthorized === undefined) {
+										delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+									} else {
+										process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+									}
+									console.log('🔧 [WORKAROUND] TLS validation restored');
 								}
-								console.log('🔧 [WORKAROUND] TLS validation restored');
+							} else {
+								resp = await axios.get(apiUrl, axiosConfig);
 							}
-						} else {
-							resp = await axios.get(apiUrl, axiosConfig);
+							
+							// Check if response contains valid directory content
+							return Array.isArray(resp.data) && resp.data.length > 0;
+						} catch (error: any) {
+							// If 404, folder doesn't exist - that's okay for our flexible validation
+							if (error.response?.status === 404) {
+								return false;
+							}
+							// Re-throw other errors (auth, network, etc.)
+							throw error;
 						}
-						if (!Array.isArray(resp.data)) { valid = false; break; }
+					};
+
+					// Check each folder and track which ones exist
+					for (const cat of cats) {
+						const exists = await checkFolder(cat);
+						if (exists) {
+							foundFolders.push(cat);
+						} else {
+							missingFolders.push(cat);
+						}
 					}
-					if (!valid) { throw new Error('Missing required folders (chatmodes, instructions, prompts)'); }
+
+					// Repository is valid if it has at least one content folder
+					if (foundFolders.length === 0) {
+						throw new Error(`Repository does not contain any of the required folders: ${cats.join(', ')}`);
+					}
 
 					// Create repo source object with baseUrl if needed
 					const repoSource = baseUrl ? { owner, repo, baseUrl } : { owner, repo };
@@ -302,7 +329,17 @@ export async function activate(context: vscode.ExtensionContext) {
 					await RepoStorage.setSources(context, sources);
 
 					const displayUrl = baseUrl ? `${baseUrl}/${owner}/${repo}` : `${owner}/${repo}`;
-					vscode.window.showInformationMessage(`✅ Successfully added: ${displayUrl}`);
+					
+					// Create success message with found folders
+					let successMessage = `✅ Successfully added: ${displayUrl}`;
+					if (foundFolders.length > 0) {
+						successMessage += `\n📁 Found folders: ${foundFolders.join(', ')}`;
+						if (missingFolders.length > 0) {
+							successMessage += `\n⚠️ Missing folders: ${missingFolders.join(', ')} (optional)`;
+						}
+					}
+					
+					vscode.window.showInformationMessage(successMessage);
 
 				} catch (err: any) {
 					// Enhanced error handling with detailed diagnostics
@@ -335,7 +372,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						});
 
 						const retryChoice = await vscode.window.showErrorMessage(
-							`🔍 Repository Not Found (404)\n\nThe repository ${owner}/${repo} was not found or doesn't contain the required folders (chatmodes, instructions, prompts).\n\nPlease verify:\n1. Repository exists at: ${repoUrl}\n2. Repository is public or you have access\n3. Repository contains the required folder structure\n\nNote: ${owner}/${repo} appears to be an extension repository, not a content repository. Content repositories should contain chatmodes, instructions, and prompts folders.\n\nDebug: Input="${input}", Owner="${owner}", Repo="${repo}"`,
+							`🔍 Repository Not Found or No Valid Content\n\nThe repository ${owner}/${repo} was not found or doesn't contain any of the required content folders (chatmodes, instructions, prompts).\n\nPlease verify:\n1. Repository exists at: ${repoUrl}\n2. Repository is public or you have access\n3. Repository contains at least one of: chatmodes, instructions, or prompts folders\n\nNote: A repository only needs to have ONE of these folders, not all of them.\n\nDebug: Input="${input}", Owner="${owner}", Repo="${repo}"`,
 							'Check Repository',
 							'Retry',
 							'Cancel'

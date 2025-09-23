@@ -158,8 +158,17 @@ export class GitHubService {
                 });
                 allFiles = allFiles.concat(files);
             } catch (error) {
-                // Show error for this repo, but continue others
-                vscode.window.showWarningMessage(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
+                // Handle different types of errors
+                const isAxiosError = error && typeof error === 'object' && 'response' in error;
+                const statusCode = isAxiosError ? (error as any).response?.status : undefined;
+                
+                if (statusCode === 404) {
+                    // 404 is expected when a repository doesn't have a particular category folder
+                    console.log(`Category '${category}' not found in ${repo.owner}/${repo.repo} (this is normal)`);
+                } else {
+                    // Show warning for other errors (auth, network, etc.)
+                    vscode.window.showWarningMessage(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
+                }
             }
         }
         // Handle duplicate filenames by adding repo information to displayName
@@ -258,8 +267,20 @@ export class GitHubService {
 
             return files;
         } catch (error) {
-            console.error(`Failed to load ${category} from ${repo.owner}/${repo.repo}:`, error);
-            throw new Error(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
+            // Handle different types of errors
+            const isAxiosError = error && typeof error === 'object' && 'response' in error;
+            const statusCode = isAxiosError ? (error as any).response?.status : undefined;
+            
+            if (statusCode === 404) {
+                // 404 is expected when a repository doesn't have a particular category folder
+                // Return empty array instead of throwing error
+                console.log(`Category '${category}' not found in ${repo.owner}/${repo.repo} (this is normal)`);
+                return [];
+            } else {
+                // Log and throw error for other types of errors (auth, network, etc.)
+                console.error(`Failed to load ${category} from ${repo.owner}/${repo.repo}:`, error);
+                throw new Error(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
+            }
         }
     }
 
