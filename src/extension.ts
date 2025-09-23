@@ -8,6 +8,7 @@ import { CopilotItem, FOLDER_PATHS, CopilotCategory } from './types';
 import * as path from 'path';
 import * as fs from 'fs';
 import { RepoStorage } from './repoStorage';
+import { StatusBarManager } from './statusBarManager';
 import axios from 'axios';
 import * as https from 'https';
 
@@ -161,7 +162,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 					// Show progress for enterprise repos
 					if (baseUrl) {
-						vscode.window.showInformationMessage(`🔍 Validating repository structure for ${owner}/${repo}...`);
+						statusBarManager.showLoading(`Validating repository structure for ${owner}/${repo}...`);
 					}
 
 					// Helper function to check if a folder exists
@@ -339,9 +340,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						}
 					}
 					
-					vscode.window.showInformationMessage(successMessage);
-
-				} catch (err: any) {
+						statusBarManager.showSuccess(`✅ Successfully added: ${displayUrl}`);				} catch (err: any) {
 					// Enhanced error handling with detailed diagnostics
 					const errorMessage = (err && err.message) || err;
 					const statusCode = err.response?.status;
@@ -438,7 +437,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Refresh the tree provider to update the UI
 				treeProvider.refresh();
 
-				vscode.window.showInformationMessage(`Removed source: ${toRemove.label}`);
+				statusBarManager.showSuccess(`Removed source: ${toRemove.label}`);
 			} else if (pick.label === 'Reset to Default') {
 				// Clear all cache before resetting
 				githubService.clearCache();
@@ -449,9 +448,9 @@ export async function activate(context: vscode.ExtensionContext) {
 				// Refresh the tree provider to update the UI
 				treeProvider.refresh();
 
-				vscode.window.showInformationMessage('Sources reset to default.');
+				statusBarManager.showSuccess('Sources reset to default');
 			} else if (pick.label === 'View Sources') {
-				vscode.window.showInformationMessage('Current sources: ' + sources.map((s: any) => `${s.owner}/${s.repo}`).join(', '));
+				statusBarManager.showInfo('Current sources: ' + sources.map((s: any) => `${s.owner}/${s.repo}`).join(', '), 8000);
 			}
 		}
 	});
@@ -461,7 +460,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "awesome-copilot" is now active!');
 
 	// Initialize services
-	const githubService = new GitHubService();
+	const statusBarManager = new StatusBarManager();
+	const githubService = new GitHubService(statusBarManager);
 	const treeProvider = new AwesomeCopilotProvider(githubService, context);
 	const previewProvider = new CopilotPreviewProvider();
 
@@ -472,7 +472,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const configChangeDisposable = RepoStorage.onConfigurationChanged(context, () => {
 		// Refresh tree view when configuration changes
 		treeProvider.refresh();
-		vscode.window.showInformationMessage('Repository sources updated from settings');
+		statusBarManager.showInfo('Repository sources updated from settings');
 	});
 
 	// Register providers
@@ -500,59 +500,82 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register refresh command
 	const refreshDisposable = vscode.commands.registerCommand('awesome-copilot.refreshAwesomeCopilot', () => {
 		treeProvider.refresh();
-		vscode.window.showInformationMessage('Refreshed Awesome Copilot data');
+		statusBarManager.showSuccess('Refreshed Awesome Copilot data');
 	});
 
 	// Register download command
-	const downloadDisposable = vscode.commands.registerCommand('awesome-copilot.downloadItem', async (treeItem: AwesomeCopilotTreeItem) => {
-		if (treeItem.copilotItem) {
-			await downloadCopilotItem(treeItem.copilotItem, githubService);
+	const downloadDisposable = vscode.commands.registerCommand('awesome-copilot.downloadItem', async (treeItem?: AwesomeCopilotTreeItem) => {
+		if (!treeItem || !treeItem.copilotItem) {
+			vscode.window.showErrorMessage('No file selected for download');
+			return;
 		}
+		await downloadCopilotItem(treeItem.copilotItem, githubService);
 	});
 
 	// Register preview command
-	const previewDisposable = vscode.commands.registerCommand('awesome-copilot.previewItem', async (treeItem: AwesomeCopilotTreeItem) => {
-		if (treeItem.copilotItem) {
-			await previewCopilotItem(treeItem.copilotItem, githubService, previewProvider);
+	const previewDisposable = vscode.commands.registerCommand('awesome-copilot.previewItem', async (treeItem?: AwesomeCopilotTreeItem) => {
+		if (!treeItem || !treeItem.copilotItem) {
+			vscode.window.showErrorMessage('No file selected for preview');
+			return;
 		}
+		await previewCopilotItem(treeItem.copilotItem, githubService, previewProvider);
 	});
 
 	// Register repository-specific commands
-	const removeRepoDisposable = vscode.commands.registerCommand('awesome-copilot.removeRepo', async (treeItem: AwesomeCopilotTreeItem) => {
-		if (treeItem.itemType === 'repo' && treeItem.repo) {
-			const repo = treeItem.repo;
-			const confirm = await vscode.window.showWarningMessage(
-				`Remove repository ${repo.owner}/${repo.repo}?`,
-				{ modal: true },
-				'Remove'
-			);
+	const removeRepoDisposable = vscode.commands.registerCommand('awesome-copilot.removeRepo', async (treeItem?: AwesomeCopilotTreeItem) => {
+		// Validate that we have a tree item with the required properties
+		if (!treeItem) {
+			vscode.window.showErrorMessage('No repository selected for removal');
+			return;
+		}
+		
+		if (treeItem.itemType !== 'repo' || !treeItem.repo) {
+			vscode.window.showErrorMessage('Invalid repository selection for removal');
+			return;
+		}
 
-			if (confirm === 'Remove') {
-				let sources = RepoStorage.getSources(context);
-				if (sources.length <= 1) {
-					vscode.window.showWarningMessage('At least one repository source is required.');
-					return;
-				}
+		const repo = treeItem.repo;
+		const confirm = await vscode.window.showWarningMessage(
+			`Remove repository ${repo.owner}/${repo.repo}?`,
+			{ modal: true },
+			'Remove'
+		);
 
-				// Clear cache for the repository being removed
-				githubService.clearRepoCache(repo);
-
-				sources = sources.filter(s => !(s.owner === repo.owner && s.repo === repo.repo));
-				await RepoStorage.setSources(context, sources);
-				treeProvider.refresh();
-				vscode.window.showInformationMessage(`Removed repository: ${repo.owner}/${repo.repo}`);
+		if (confirm === 'Remove') {
+			let sources = RepoStorage.getSources(context);
+			if (sources.length <= 1) {
+				vscode.window.showWarningMessage('At least one repository source is required.');
+				return;
 			}
+
+			// Clear cache for the repository being removed
+			githubService.clearRepoCache(repo);
+
+			sources = sources.filter(s => !(s.owner === repo.owner && s.repo === repo.repo));
+			await RepoStorage.setSources(context, sources);
+			treeProvider.refresh();
+			statusBarManager.showSuccess(`Removed repository: ${repo.owner}/${repo.repo}`);
 		}
 	});
 
-	const refreshRepoDisposable = vscode.commands.registerCommand('awesome-copilot.refreshRepo', async (treeItem: AwesomeCopilotTreeItem) => {
-		if (treeItem.itemType === 'repo' && treeItem.repo) {
-			const repo = treeItem.repo;
-			// Clear cache for this repository
-			githubService.clearCache();
-			treeProvider.refresh();
-			vscode.window.showInformationMessage(`Refreshed repository: ${repo.owner}/${repo.repo}`);
+	const refreshRepoDisposable = vscode.commands.registerCommand('awesome-copilot.refreshRepo', async (treeItem?: AwesomeCopilotTreeItem) => {
+		// Validate that we have a tree item with the required properties
+		if (!treeItem) {
+			vscode.window.showErrorMessage('No repository selected for refresh');
+			return;
 		}
+		
+		if (treeItem.itemType !== 'repo' || !treeItem.repo) {
+			vscode.window.showErrorMessage('Invalid repository selection for refresh');
+			return;
+		}
+
+		const repo = treeItem.repo;
+		// Clear cache for this specific repository only
+		githubService.clearRepoCache(repo);
+		// Refresh only this specific repository in the tree view
+		treeProvider.refreshRepo(repo);
+		statusBarManager.showSuccess(`Refreshed repository: ${repo.owner}/${repo.repo}`);
 	});
 
 	// Register token configuration command
@@ -576,7 +599,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (token) {
 			const config = vscode.workspace.getConfiguration('awesome-copilot');
 			await config.update('enterpriseToken', token, vscode.ConfigurationTarget.Global);
-			vscode.window.showInformationMessage('🔑 Enterprise GitHub token configured successfully!');
+			statusBarManager.showSuccess('Enterprise GitHub token configured successfully!');
 		}
 	});
 
@@ -591,7 +614,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		if (confirm === 'Clear') {
 			const config = vscode.workspace.getConfiguration('awesome-copilot');
 			await config.update('enterpriseToken', undefined, vscode.ConfigurationTarget.Global);
-			vscode.window.showInformationMessage('Enterprise GitHub token cleared');
+			statusBarManager.showSuccess('Enterprise GitHub token cleared');
 		}
 	});
 
@@ -602,19 +625,66 @@ export async function activate(context: vscode.ExtensionContext) {
 		const currentValue = config.get<boolean>('showTreeView', true);
 		await config.update('showTreeView', !currentValue, vscode.ConfigurationTarget.Global);
 		const newState = !currentValue ? 'shown' : 'hidden';
-		vscode.window.showInformationMessage(`Awesome Copilot tree view ${newState}`);
+		statusBarManager.showInfo(`Awesome Copilot tree view ${newState}`);
 	});
 
 	const showTreeViewDisposable = vscode.commands.registerCommand('awesome-copilot.showTreeView', async () => {
 		const config = vscode.workspace.getConfiguration('awesome-copilot');
 		await config.update('showTreeView', true, vscode.ConfigurationTarget.Global);
-		vscode.window.showInformationMessage('Awesome Copilot tree view shown');
+		statusBarManager.showInfo('Awesome Copilot tree view shown');
 	});
 
 	const hideTreeViewDisposable = vscode.commands.registerCommand('awesome-copilot.hideTreeView', async () => {
 		const config = vscode.workspace.getConfiguration('awesome-copilot');
 		await config.update('showTreeView', false, vscode.ConfigurationTarget.Global);
-		vscode.window.showInformationMessage('Awesome Copilot tree view hidden');
+		statusBarManager.showInfo('Awesome Copilot tree view hidden');
+	});
+
+	// Register GitHub authentication commands
+	const signInToGitHubDisposable = vscode.commands.registerCommand('awesome-copilot.signInToGitHub', async () => {
+		try {
+			const session = await vscode.authentication.getSession('github', ['repo'], {
+				createIfNone: true
+			});
+
+			if (session) {
+				statusBarManager.showSuccess(`Signed in to GitHub as ${session.account.label}. Rate limit increased to 5,000 requests/hour!`);
+				// Clear cache to refresh with authenticated requests
+				githubService.clearCache();
+				treeProvider.refresh();
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(`Failed to sign in to GitHub: ${error}`);
+		}
+	});
+
+	const signOutFromGitHubDisposable = vscode.commands.registerCommand('awesome-copilot.signOutFromGitHub', async () => {
+		try {
+			// Try to get current session
+			const session = await vscode.authentication.getSession('github', ['repo'], {
+				createIfNone: false,
+				silent: true
+			});
+
+			if (session) {
+				const confirm = await vscode.window.showWarningMessage(
+					`Sign out from GitHub? This will reduce your API rate limit from 5,000 to 60 requests per hour.`,
+					{ modal: true },
+					'Sign Out'
+				);
+
+				if (confirm === 'Sign Out') {
+					// Note: VS Code doesn't provide a direct way to sign out from a specific provider
+					// The user needs to sign out through VS Code's account management
+					await vscode.commands.executeCommand('workbench.action.showAccountsManagement');
+					statusBarManager.showInfo('Please sign out from GitHub using the account management panel');
+				}
+			} else {
+				statusBarManager.showInfo('Not currently signed in to GitHub');
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage(`Error checking GitHub authentication: ${error}`);
+		}
 	});
 
 	context.subscriptions.push(
@@ -629,9 +699,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		toggleTreeViewDisposable,
 		showTreeViewDisposable,
 		hideTreeViewDisposable,
+		signInToGitHubDisposable,
+		signOutFromGitHubDisposable,
 		configChangeDisposable,
 		treeView,
-		previewProviderDisposable
+		previewProviderDisposable,
+		statusBarManager
 	);
 }
 

@@ -4,12 +4,119 @@ import * as vscode from 'vscode';
 import * as https from 'https';
 import { GitHubFile, CopilotCategory, CacheEntry, RepoSource } from './types';
 import { RepoStorage } from './repoStorage';
+import { StatusBarManager } from './statusBarManager';
 
 
 export class GitHubService {
     private static readonly CACHE_DURATION = 60 * 60 * 1000; // 1 hour
     // Cache key: repoKey|category
     private cache: Map<string, CacheEntry> = new Map();
+    private statusBarManager: StatusBarManager;
+
+    constructor(statusBarManager?: StatusBarManager) {
+        // Use provided status bar manager or create a new one
+        this.statusBarManager = statusBarManager || new StatusBarManager();
+    }
+
+    // Check if GitHub authentication is available and prompt if needed
+    private async ensureGitHubAuth(isEnterprise: boolean = false): Promise<boolean> {
+        const config = vscode.workspace.getConfiguration('awesome-copilot');
+        const enableAuth = config.get<boolean>('enableGithubAuth', true);
+        
+        if (!enableAuth) {
+            return false;
+        }
+
+        try {
+            // For enterprise, check if token is configured first
+            if (isEnterprise) {
+                const enterpriseToken = config.get<string>('enterpriseToken');
+                if (enterpriseToken) {
+                    return true;
+                }
+            }
+
+            // Try to get existing session
+            let session = await vscode.authentication.getSession('github', ['repo'], {
+                createIfNone: false,
+                silent: true
+            });
+
+            if (!session) {
+                // Prompt user to sign in
+                const signInChoice = await vscode.window.showInformationMessage(
+                    'Sign in to GitHub to increase API rate limits from 60 to 5,000 requests per hour.',
+                    'Sign In',
+                    'Skip'
+                );
+
+                if (signInChoice === 'Sign In') {
+                    session = await vscode.authentication.getSession('github', ['repo'], {
+                        createIfNone: true
+                    });
+                    if (session) {
+                        this.statusBarManager.showInfo('GitHub authentication successful!');
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error('GitHub authentication error:', error);
+            return false;
+        }
+    }
+
+    // Handle authentication-related HTTP errors
+    private async handleAuthError(error: any, isEnterprise: boolean = false): Promise<boolean> {
+        const isAxiosError = error && typeof error === 'object' && 'response' in error;
+        const statusCode = isAxiosError ? error.response?.status : undefined;
+
+        if (statusCode === 401 || statusCode === 403) {
+            const config = vscode.workspace.getConfiguration('awesome-copilot');
+            const enableAuth = config.get<boolean>('enableGithubAuth', true);
+            
+            if (!enableAuth) {
+                this.statusBarManager.showWarning('GitHub authentication is disabled. Enable it to avoid rate limits.');
+                return false;
+            }
+
+            // Check if this is a rate limit issue
+            const rateLimitRemaining = error.response?.headers['x-ratelimit-remaining'];
+            if (rateLimitRemaining === '0') {
+                const resetTime = error.response?.headers['x-ratelimit-reset'];
+                if (resetTime) {
+                    const resetDate = new Date(parseInt(resetTime) * 1000);
+                    const waitMinutes = Math.ceil((resetDate.getTime() - Date.now()) / (60 * 1000));
+                    this.statusBarManager.showWarning(`Rate limit exceeded. Resets in ${waitMinutes} minutes.`);
+                    
+                    // Suggest authentication if not already authenticated
+                    const authChoice = await vscode.window.showWarningMessage(
+                        `GitHub API rate limit exceeded. Sign in to GitHub to get 5,000 requests/hour instead of 60.`,
+                        'Sign In',
+                        'Wait'
+                    );
+                    
+                    if (authChoice === 'Sign In') {
+                        return await this.ensureGitHubAuth(isEnterprise);
+                    }
+                }
+            } else {
+                // Other authentication error
+                const authChoice = await vscode.window.showErrorMessage(
+                    'GitHub authentication failed. Sign in to access private repositories and increase rate limits.',
+                    'Sign In',
+                    'Skip'
+                );
+                
+                if (authChoice === 'Sign In') {
+                    return await this.ensureGitHubAuth(isEnterprise);
+                }
+            }
+        }
+        return false;
+    }
 
     // Create HTTPS agent with secure SSL handling - requires explicit user opt-in for insecure certificates
     private createHttpsAgent(url: string): https.Agent | undefined {
@@ -44,45 +151,56 @@ export class GitHubService {
         return undefined;
     }
 
-    // Create request headers with proper authentication for enterprise GitHub
+    // Create request headers with proper authentication for GitHub
     private async createRequestHeaders(isEnterprise: boolean = false): Promise<Record<string, string>> {
         const headers: Record<string, string> = {
             'User-Agent': 'VSCode-AwesomeCopilot-Extension',
             'Accept': 'application/vnd.github.v3+json'
         };
 
-        if (isEnterprise) {
-            // Enhanced enterprise GitHub auth headers
-            headers['X-Requested-With'] = 'VSCode-Extension';
-            headers['Accept-Encoding'] = 'gzip, deflate, br';
-            headers['Accept-Language'] = 'en-US,en;q=0.9';
-            headers['Cache-Control'] = 'no-cache';
-            headers['Pragma'] = 'no-cache';
-            headers['Sec-Fetch-Dest'] = 'empty';
-            headers['Sec-Fetch-Mode'] = 'cors';
-            headers['Sec-Fetch-Site'] = 'same-origin';
+        // Try to authenticate for all GitHub requests (both public and enterprise)
+        const config = vscode.workspace.getConfiguration('awesome-copilot');
+        const enableAuth = config.get<boolean>('enableGithubAuth', true);
+        
+        if (enableAuth) {
+            if (isEnterprise) {
+                // Enhanced enterprise GitHub auth headers
+                headers['X-Requested-With'] = 'VSCode-Extension';
+                headers['Accept-Encoding'] = 'gzip, deflate, br';
+                headers['Accept-Language'] = 'en-US,en;q=0.9';
+                headers['Cache-Control'] = 'no-cache';
+                headers['Pragma'] = 'no-cache';
+                headers['Sec-Fetch-Dest'] = 'empty';
+                headers['Sec-Fetch-Mode'] = 'cors';
+                headers['Sec-Fetch-Site'] = 'same-origin';
 
-            // Priority 1: Check for configured enterprise token
-            const config = vscode.workspace.getConfiguration('awesome-copilot');
-            const enterpriseToken = config.get<string>('enterpriseToken');
-
-            if (enterpriseToken) {
-                headers['Authorization'] = `token ${enterpriseToken}`;
-                return headers;
+                // Priority 1: Check for configured enterprise token
+                const enterpriseToken = config.get<string>('enterpriseToken');
+                if (enterpriseToken) {
+                    headers['Authorization'] = `token ${enterpriseToken}`;
+                    return headers;
+                }
             }
 
-            // Priority 2: Try VS Code's authentication provider
+            // Try VS Code's GitHub authentication provider for both public and enterprise GitHub
             try {
-                const session = await vscode.authentication.getSession('github', [], {
+                const session = await vscode.authentication.getSession('github', ['repo'], {
                     createIfNone: false,
                     silent: true
                 });
                 if (session && session.accessToken) {
                     headers['Authorization'] = `token ${session.accessToken}`;
+                    const debugMode = config.get<boolean>('debugMode', false);
+                    if (debugMode) {
+                        console.log(`GitHub authentication successful for ${isEnterprise ? 'enterprise' : 'public'} GitHub`);
+                    }
                     return headers;
                 }
             } catch (authError) {
-                // Silent failure for auth attempts
+                const debugMode = config.get<boolean>('debugMode', false);
+                if (debugMode) {
+                    console.log('GitHub authentication failed (silent):', authError);
+                }
             }
         }
 
@@ -99,7 +217,7 @@ export class GitHubService {
         const now = Date.now();
         let allFiles: GitHubFile[] = [];
         for (const repo of sources) {
-            const repoKey = `${repo.owner}/${repo.repo}`;
+            const repoKey = `${repo.baseUrl || 'github.com'}/${repo.owner}/${repo.repo}`;
             const cacheKey = `${repoKey}|${category}`;
             const cacheEntry = this.cache.get(cacheKey);
             if (!forceRefresh && cacheEntry && (now - cacheEntry.timestamp) < GitHubService.CACHE_DURATION) {
@@ -131,24 +249,53 @@ export class GitHubService {
                 const config = vscode.workspace.getConfiguration('awesome-copilot');
                 const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
 
-                if (isEnterprise && allowInsecureEnterpriseCerts) {
-                    // Temporary global TLS override for this specific enterprise request
-                    const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+                try {
+                    if (isEnterprise && allowInsecureEnterpriseCerts) {
+                        // Temporary global TLS override for this specific enterprise request
+                        const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-                    try {
-                        response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
-                    } finally {
-                        // Restore original setting immediately
-                        if (originalRejectUnauthorized === undefined) {
-                            delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-                        } else {
-                            process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                        try {
+                            response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                        } finally {
+                            // Restore original setting immediately
+                            if (originalRejectUnauthorized === undefined) {
+                                delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                            } else {
+                                process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                            }
                         }
+                    } else {
+                        response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
                     }
-                } else {
-                    response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                } catch (requestError) {
+                    // Handle authentication errors and retry
+                    const authRetried = await this.handleAuthError(requestError, isEnterprise);
+                    if (authRetried) {
+                        // Retry with new authentication
+                        const newHeaders = await this.createRequestHeaders(isEnterprise);
+                        axiosConfig.headers = newHeaders;
+                        
+                        if (isEnterprise && allowInsecureEnterpriseCerts) {
+                            const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+                            try {
+                                response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                            } finally {
+                                if (originalRejectUnauthorized === undefined) {
+                                    delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                                } else {
+                                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                                }
+                            }
+                        } else {
+                            response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                        }
+                    } else {
+                        throw requestError;
+                    }
                 }
+
                 const files = (response.data as GitHubFile[]).filter((file: GitHubFile) => file.type === 'file').map(f => ({ ...f, repo }));
                 this.cache.set(cacheKey, {
                     data: files,
@@ -166,8 +313,8 @@ export class GitHubService {
                     // 404 is expected when a repository doesn't have a particular category folder
                     console.log(`Category '${category}' not found in ${repo.owner}/${repo.repo} (this is normal)`);
                 } else {
-                    // Show warning for other errors (auth, network, etc.)
-                    vscode.window.showWarningMessage(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
+                    // Show warning in status bar for other errors (auth, network, etc.)
+                    this.statusBarManager.showWarning(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
                 }
             }
         }
