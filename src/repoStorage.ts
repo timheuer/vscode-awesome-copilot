@@ -11,14 +11,14 @@ export class RepoStorage {
   /**
    * Get repository sources from VS Code settings first, then fallback to global state
    */
-  static getSources(context: vscode.ExtensionContext): RepoSource[] {
+  static async getSources(context: vscode.ExtensionContext): Promise<RepoSource[]> {
     // First try to get from VS Code settings
     const config = vscode.workspace.getConfiguration();
     const configSources = config.get<RepoSource[]>(CONFIG_KEY);
     
     if (configSources && Array.isArray(configSources) && configSources.length > 0) {
-      // Sync config to global state for backward compatibility
-      context.globalState.update(STORAGE_KEY, configSources);
+      // Sync config to global state for backward compatibility (await to ensure persistence before returning)
+      await context.globalState.update(STORAGE_KEY, configSources);
       return configSources;
     }
     
@@ -26,13 +26,13 @@ export class RepoStorage {
     const raw = context.globalState.get<RepoSource[]>(STORAGE_KEY);
     if (raw && Array.isArray(raw) && raw.length > 0) {
       // Sync global state to config
-      this.syncToConfig(raw);
+      await this.syncToConfig(raw);
       return raw;
     }
     
     // Use defaults and sync to both
-    this.syncToConfig(DEFAULT_SOURCES);
-    context.globalState.update(STORAGE_KEY, DEFAULT_SOURCES);
+    await this.syncToConfig(DEFAULT_SOURCES);
+    await context.globalState.update(STORAGE_KEY, DEFAULT_SOURCES);
     return [...DEFAULT_SOURCES];
   }
 
@@ -92,7 +92,7 @@ export class RepoStorage {
    * Initialize repository sources from settings on startup
    */
   static async initializeFromSettings(context: vscode.ExtensionContext): Promise<void> {
-    const sources = this.getSources(context);
+    const sources = await this.getSources(context);
     console.log('Initialized repository sources:', sources.map(s => `${s.owner}/${s.repo}`).join(', '));
   }
 }

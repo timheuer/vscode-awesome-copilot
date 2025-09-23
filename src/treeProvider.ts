@@ -87,7 +87,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
     async getChildren(element?: AwesomeCopilotTreeItem): Promise<AwesomeCopilotTreeItem[]> {
         if (!element) {
             // Return root repositories
-            const repos = this.context ? RepoStorage.getSources(this.context) : [{ owner: 'github', repo: 'awesome-copilot', label: 'Awesome Copilot' }];
+            const repos = this.context ? await RepoStorage.getSources(this.context) : [{ owner: 'github', repo: 'awesome-copilot', label: 'Awesome Copilot' }];
             return repos.map(repo => 
                 new AwesomeCopilotTreeItem(
                     repo.label || `${repo.owner}/${repo.repo}`,
@@ -135,7 +135,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
             const items = await this.getItemsForRepoAndCategory(element.repo, element.category);
             return items.map(item =>
                 new AwesomeCopilotTreeItem(
-                    item.name,
+                    item.file.displayName || item.name,
                     vscode.TreeItemCollapsibleState.None,
                     'file',
                     item,
@@ -188,7 +188,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
             return;
         }
         
-        const repos = RepoStorage.getSources(this.context);
+    const repos = await RepoStorage.getSources(this.context);
         const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts];
         
         for (const repo of repos) {
@@ -204,7 +204,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     const files = await this.githubService.getFilesByRepo(repo, category, forceRefresh);
                     const items = files.map((file: GitHubFile) => ({
                         id: `${category}-${file.name}-${repo.owner}-${repo.repo}`,
-                        name: file.name,
+                        name: file.displayName || file.name,
                         category,
                         file,
                         repo: repo
