@@ -20,7 +20,7 @@
   "engines": {
     "vscode": "^1.103.0"
   },
-    "badges": [
+  "badges": [
     {
       "url": "https://img.shields.io/visual-studio-marketplace/v/timheuer.vscode-awesome-copilot?label=VS%20Code%20Marketplace&color=brightgreen&logo=visualstudiocode",
       "href": "https://marketplace.visualstudio.com/items?itemName=TimHeuer.vscode-awesome-copilot",
@@ -109,6 +109,13 @@
           "default": true,
           "description": "Show/hide the Awesome Copilot tree view in the Explorer panel",
           "scope": "application"
+        },
+        "awesome-copilot.allowInsecureEnterpriseCerts": {
+          "type": "boolean",
+          "default": false,
+          "description": "⚠️ SECURITY WARNING: Allow insecure certificates for Enterprise GitHub servers. Only enable this for trusted enterprise environments with self-signed certificates.",
+          "scope": "application",
+          "markdownDescription": "**⚠️ SECURITY WARNING:** This setting disables TLS certificate validation for Enterprise GitHub servers only. Only enable for trusted enterprise environments with self-signed certificates.  \n\n**Default: `false` (secure)**  \n\n**Note:** If you're getting certificate errors with enterprise GitHub, enable this temporarily to add your repository, then you can disable it again for better security."
         }
       }
     },
@@ -152,11 +159,6 @@
         "command": "awesome-copilot.clearEnterpriseToken",
         "title": "Awesome Copilot: Clear Enterprise Token",
         "icon": "$(trash)"
-      },
-      {
-        "command": "awesome-copilot.showConfiguredRepos",
-        "title": "Awesome Copilot: Show Configured Repositories",
-        "icon": "$(list-unordered)"
       },
       {
         "command": "awesome-copilot.toggleTreeView",

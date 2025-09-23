@@ -72,10 +72,10 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         // Clear all cached data
         this.repoItems.clear();
         this.loading.clear();
-        
+
         // Fire tree data change event to refresh the UI
         this._onDidChangeTreeData.fire();
-        
+
         // Reload data for current repositories
         this.loadAllReposAndCategories(true);
     }
@@ -88,7 +88,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         if (!element) {
             // Return root repositories
             const repos = this.context ? RepoStorage.getSources(this.context) : [{ owner: 'github', repo: 'awesome-copilot', label: 'Awesome Copilot' }];
-            return repos.map(repo => 
+            return repos.map(repo =>
                 new AwesomeCopilotTreeItem(
                     repo.label || `${repo.owner}/${repo.repo}`,
                     vscode.TreeItemCollapsibleState.Expanded,
@@ -112,7 +112,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     element.repo
                 ),
                 new AwesomeCopilotTreeItem(
-                    CATEGORY_LABELS[CopilotCategory.Instructions], 
+                    CATEGORY_LABELS[CopilotCategory.Instructions],
                     vscode.TreeItemCollapsibleState.Collapsed,
                     'category',
                     undefined,
@@ -133,6 +133,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         if (element.itemType === 'category' && element.category && element.repo) {
             // Return files for the category in this repository
             const items = await this.getItemsForRepoAndCategory(element.repo, element.category);
+
             return items.map(item =>
                 new AwesomeCopilotTreeItem(
                     item.name,
@@ -144,20 +145,20 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 )
             );
         }
-        
+
         return [];
     }
 
     private async getItemsForRepoAndCategory(repo: RepoSource, category: CopilotCategory): Promise<CopilotItem[]> {
         const repoKey = `${repo.owner}/${repo.repo}`;
         const loadingKey = `${repoKey}-${category}`;
-        
+
         if (!this.repoItems.has(repoKey)) {
             this.repoItems.set(repoKey, new Map());
         }
-        
+
         const repoData = this.repoItems.get(repoKey)!;
-        
+
         if (!repoData.has(category) && !this.loading.has(loadingKey)) {
             this.loading.add(loadingKey);
             try {
@@ -179,7 +180,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 this.loading.delete(loadingKey);
             }
         }
-        
+
         return repoData.get(category) || [];
     }
 
@@ -187,18 +188,18 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         if (!this.context) {
             return;
         }
-        
+
         const repos = RepoStorage.getSources(this.context);
         const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts];
-        
+
         for (const repo of repos) {
             const repoKey = `${repo.owner}/${repo.repo}`;
             if (!this.repoItems.has(repoKey)) {
                 this.repoItems.set(repoKey, new Map());
             }
-            
+
             const repoData = this.repoItems.get(repoKey)!;
-            
+
             for (const category of categories) {
                 try {
                     const files = await this.githubService.getFilesByRepo(repo, category, forceRefresh);
@@ -215,7 +216,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 }
             }
         }
-        
+
         this._onDidChangeTreeData.fire();
     }
 

@@ -11,31 +11,36 @@ export class GitHubService {
     // Cache key: repoKey|category
     private cache: Map<string, CacheEntry> = new Map();
 
-    // Create HTTPS agent with proper SSL handling (following VS Code Git extension pattern)
+    // Create HTTPS agent with secure SSL handling - requires explicit user opt-in for insecure certificates
     private createHttpsAgent(url: string): https.Agent | undefined {
         try {
-            // Check VS Code git.ignoreLegacyWarning and http.systemCertificates settings
-            const gitConfig = vscode.workspace.getConfiguration('git');
-            const httpConfig = vscode.workspace.getConfiguration('http');
-            
+            // Check security configuration
+            const config = vscode.workspace.getConfiguration('awesome-copilot');
+            const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
+
             // If it's not github.com, treat as enterprise
             const isEnterprise = !url.includes('github.com');
-            
-            if (isEnterprise) {
-                // For enterprise GitHub servers, use more permissive SSL options
+
+
+            if (isEnterprise && allowInsecureEnterpriseCerts) {
+                // Only allow insecure certificates when explicitly enabled by user
+                console.warn('⚠️ SECURITY WARNING: Using insecure HTTPS agent for enterprise GitHub server');
                 return new https.Agent({
                     rejectUnauthorized: false,
-                    // Allow self-signed certificates
                     checkServerIdentity: () => undefined,
-                    // Keep connections alive
+                    keepAlive: true,
+                    maxSockets: 5
+                });
+            } else if (isEnterprise) {
+                return new https.Agent({
+                    rejectUnauthorized: true,
                     keepAlive: true,
                     maxSockets: 5
                 });
             }
         } catch (error) {
-            console.warn('Failed to create HTTPS agent, using default:', error);
+            console.warn('Failed to create HTTPS agent:', error);
         }
-        
         return undefined;
     }
 
@@ -56,33 +61,29 @@ export class GitHubService {
             headers['Sec-Fetch-Dest'] = 'empty';
             headers['Sec-Fetch-Mode'] = 'cors';
             headers['Sec-Fetch-Site'] = 'same-origin';
-            
+
             // Priority 1: Check for configured enterprise token
             const config = vscode.workspace.getConfiguration('awesome-copilot');
             const enterpriseToken = config.get<string>('enterpriseToken');
-            
+
             if (enterpriseToken) {
                 headers['Authorization'] = `token ${enterpriseToken}`;
-                console.log('🔑 Using configured enterprise GitHub token for API requests');
                 return headers;
             }
-            
+
             // Priority 2: Try VS Code's authentication provider
             try {
-                const session = await vscode.authentication.getSession('github', [], { 
+                const session = await vscode.authentication.getSession('github', [], {
                     createIfNone: false,
-                    silent: true 
+                    silent: true
                 });
                 if (session && session.accessToken) {
                     headers['Authorization'] = `token ${session.accessToken}`;
-                    console.log('🔑 Using VS Code GitHub authentication for API requests');
                     return headers;
                 }
             } catch (authError) {
-                console.warn('📝 VS Code GitHub auth not available for API requests');
+                // Silent failure for auth attempts
             }
-            
-            console.warn('⚠️ No authentication token available for enterprise GitHub API requests');
         }
 
         return headers;
@@ -93,7 +94,7 @@ export class GitHubService {
         // Get sources from storage (context required for multi-repo)
         let sources: RepoSource[] = [{ owner: 'github', repo: 'awesome-copilot', label: 'Awesome Copilot' }];
         if (context) {
-            try { sources = RepoStorage.getSources(context); } catch {}
+            try { sources = RepoStorage.getSources(context); } catch { }
         }
         const now = Date.now();
         let allFiles: GitHubFile[] = [];
@@ -106,13 +107,48 @@ export class GitHubService {
                 continue;
             }
             try {
-                const url = `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${category}`;
-                const response = await axios.get<GitHubFile[]>(url, {
+                const apiUrl = this.buildApiUrl(repo, category);
+                const isEnterprise = !!repo.baseUrl;
+                const headers = await this.createRequestHeaders(isEnterprise);
+
+                const axiosConfig: any = {
                     timeout: 10000,
-                    headers: {
-                        'User-Agent': 'VSCode-AwesomeCopilot-Extension'
+                    headers: headers,
+                    // For enterprise GitHub, allow cookies to be sent for authentication
+                    withCredentials: isEnterprise
+                };
+
+                // Apply SSL configuration for enterprise GitHub
+                if (isEnterprise) {
+                    const httpsAgent = this.createHttpsAgent(apiUrl);
+                    if (httpsAgent) {
+                        axiosConfig.httpsAgent = httpsAgent;
+                        axiosConfig.agent = httpsAgent;
                     }
-                });
+                }
+
+                let response;
+                const config = vscode.workspace.getConfiguration('awesome-copilot');
+                const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
+
+                if (isEnterprise && allowInsecureEnterpriseCerts) {
+                    // Temporary global TLS override for this specific enterprise request
+                    const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+                    try {
+                        response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                    } finally {
+                        // Restore original setting immediately
+                        if (originalRejectUnauthorized === undefined) {
+                            delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                        } else {
+                            process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                        }
+                    }
+                } else {
+                    response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                }
                 const files = (response.data as GitHubFile[]).filter((file: GitHubFile) => file.type === 'file').map(f => ({ ...f, repo }));
                 this.cache.set(cacheKey, {
                     data: files,
@@ -126,8 +162,30 @@ export class GitHubService {
                 vscode.window.showWarningMessage(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
             }
         }
-        // Optionally: handle duplicate filenames (add repo info to name, etc.)
-        // For now, just return all files (UI can distinguish by repo)
+        // Handle duplicate filenames by adding repo information to displayName
+        const fileNameCounts = new Map<string, number>();
+        const duplicateNames = new Set<string>();
+
+        // First pass: count occurrences of each filename
+        for (const file of allFiles) {
+            const count = fileNameCounts.get(file.name) || 0;
+            fileNameCounts.set(file.name, count + 1);
+            if (count >= 1) {
+                duplicateNames.add(file.name);
+            }
+        }
+
+        // Second pass: add displayName for duplicates
+        for (const file of allFiles) {
+            if (duplicateNames.has(file.name) && file.repo) {
+                // For duplicates, show "filename.ext (owner/repo)"
+                file.displayName = `${file.name} (${file.repo.owner}/${file.repo.repo})`;
+            } else {
+                // For unique files, use original name
+                file.displayName = file.name;
+            }
+        }
+
         return allFiles;
     }
 
@@ -147,15 +205,45 @@ export class GitHubService {
             const apiUrl = this.buildApiUrl(repo, category);
             const isEnterprise = !!repo.baseUrl;
             const headers = await this.createRequestHeaders(isEnterprise);
-            
-            const response = await axios.get<GitHubFile[]>(apiUrl, {
+
+            const axiosConfig: any = {
                 timeout: 10000,
                 headers: headers,
-                // Use robust SSL handling
-                httpsAgent: this.createHttpsAgent(apiUrl),
                 // For enterprise GitHub, allow cookies to be sent for authentication
                 withCredentials: isEnterprise
-            });
+            };
+
+            // Apply SSL configuration for enterprise GitHub
+            if (isEnterprise) {
+                const httpsAgent = this.createHttpsAgent(apiUrl);
+                if (httpsAgent) {
+                    axiosConfig.httpsAgent = httpsAgent;
+                    axiosConfig.agent = httpsAgent;
+                }
+            }
+
+            let response;
+            const config = vscode.workspace.getConfiguration('awesome-copilot');
+            const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
+
+            if (isEnterprise && allowInsecureEnterpriseCerts) {
+                // Temporary global TLS override for this specific enterprise request
+                const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+                try {
+                    response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                } finally {
+                    // Restore original setting immediately
+                    if (originalRejectUnauthorized === undefined) {
+                        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                    } else {
+                        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                    }
+                }
+            } else {
+                response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+            }
 
             const files = (response.data as GitHubFile[])
                 .filter((file: GitHubFile) => file.type === 'file')
@@ -179,15 +267,45 @@ export class GitHubService {
         try {
             const isEnterprise = !downloadUrl.includes('github.com');
             const headers = await this.createRequestHeaders(isEnterprise);
-            
-            const response = await axios.get(downloadUrl, {
+
+            const axiosConfig: any = {
                 timeout: 10000,
                 headers: headers,
-                // Use robust SSL handling
-                httpsAgent: this.createHttpsAgent(downloadUrl),
                 // For enterprise GitHub, allow cookies for authentication
                 withCredentials: isEnterprise
-            });
+            };
+
+            // Apply SSL configuration for enterprise GitHub
+            if (isEnterprise) {
+                const httpsAgent = this.createHttpsAgent(downloadUrl);
+                if (httpsAgent) {
+                    axiosConfig.httpsAgent = httpsAgent;
+                    axiosConfig.agent = httpsAgent;
+                }
+            }
+
+            let response;
+            const config = vscode.workspace.getConfiguration('awesome-copilot');
+            const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
+
+            if (isEnterprise && allowInsecureEnterpriseCerts) {
+                // Temporary global TLS override for this specific enterprise request
+                const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+                try {
+                    response = await axios.get(downloadUrl, axiosConfig);
+                } finally {
+                    // Restore original setting immediately
+                    if (originalRejectUnauthorized === undefined) {
+                        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                    } else {
+                        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                    }
+                }
+            } else {
+                response = await axios.get(downloadUrl, axiosConfig);
+            }
             return response.data;
         } catch (error) {
             console.error('Failed to fetch file content:', error);
@@ -216,19 +334,19 @@ export class GitHubService {
     clearRepoCache(repo: RepoSource): void {
         const repoKey = `${repo.baseUrl || 'github.com'}/${repo.owner}/${repo.repo}`;
         const keysToDelete: string[] = [];
-        
+
         // Find all cache keys for this repository
         for (const cacheKey of this.cache.keys()) {
             if (cacheKey.startsWith(`${repoKey}|`)) {
                 keysToDelete.push(cacheKey);
             }
         }
-        
+
         // Delete the cache entries
         for (const key of keysToDelete) {
             this.cache.delete(key);
         }
-        
+
         console.log(`Cleared cache for repository: ${repo.owner}/${repo.repo}`);
     }
 
@@ -237,13 +355,13 @@ export class GitHubService {
         if (entries.length === 0) {
             return 'Cache empty';
         }
-        
+
         const now = Date.now();
         const status = entries.map(([category, entry]) => {
             const age = Math.floor((now - entry.timestamp) / (60 * 1000)); // minutes
             return `${category}: ${entry.data.length} files (${age}m old)`;
         }).join(', ');
-        
+
         return status;
     }
 }

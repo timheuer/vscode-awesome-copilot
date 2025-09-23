@@ -11,6 +11,7 @@ export interface GitHubFile {
     size: number;
     type: 'file' | 'dir';
     repo?: RepoSource; // Optional: which repo this file comes from
+    displayName?: string; // For handling duplicate filenames across repos
 }
 
 
@@ -33,7 +34,7 @@ export interface CopilotItem {
 
 export enum CopilotCategory {
     ChatModes = 'chatmodes',
-    Instructions = 'instructions', 
+    Instructions = 'instructions',
     Prompts = 'prompts'
 }
 
