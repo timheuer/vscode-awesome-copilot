@@ -11,8 +11,6 @@ export interface GitHubFile {
     size: number;
     type: 'file' | 'dir';
     repo?: RepoSource; // Optional: which repo this file comes from
-    // Optional disambiguated display name (e.g., filename + repo) when duplicates exist across repos
-    displayName?: string;
 }
 
 

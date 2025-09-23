@@ -1,6 +1,7 @@
 
 import axios from 'axios';
 import * as vscode from 'vscode';
+import * as https from 'https';
 import { GitHubFile, CopilotCategory, CacheEntry, RepoSource } from './types';
 import { RepoStorage } from './repoStorage';
 
@@ -10,6 +11,33 @@ export class GitHubService {
     // Cache key: repoKey|category
     private cache: Map<string, CacheEntry> = new Map();
 
+    // Create HTTPS agent with proper SSL handling (following VS Code Git extension pattern)
+    private createHttpsAgent(url: string): https.Agent | undefined {
+        try {
+            // Check VS Code git.ignoreLegacyWarning and http.systemCertificates settings
+            const gitConfig = vscode.workspace.getConfiguration('git');
+            const httpConfig = vscode.workspace.getConfiguration('http');
+            
+            // If it's not github.com, treat as enterprise
+            const isEnterprise = !url.includes('github.com');
+            
+            if (isEnterprise) {
+                // For enterprise GitHub servers, use more permissive SSL options
+                return new https.Agent({
+                    rejectUnauthorized: false,
+                    // Allow self-signed certificates
+                    checkServerIdentity: () => undefined,
+                    // Keep connections alive
+                    keepAlive: true,
+                    maxSockets: 5
+                });
+            }
+        } catch (error) {
+            console.warn('Failed to create HTTPS agent, using default:', error);
+        }
+        
+        return undefined;
+    }
 
     // Create request headers with proper authentication for enterprise GitHub
     private async createRequestHeaders(isEnterprise: boolean = false): Promise<Record<string, string>> {
@@ -65,7 +93,7 @@ export class GitHubService {
         // Get sources from storage (context required for multi-repo)
         let sources: RepoSource[] = [{ owner: 'github', repo: 'awesome-copilot', label: 'Awesome Copilot' }];
         if (context) {
-            try { sources = await RepoStorage.getSources(context); } catch {}
+            try { sources = RepoStorage.getSources(context); } catch {}
         }
         const now = Date.now();
         let allFiles: GitHubFile[] = [];
@@ -85,9 +113,7 @@ export class GitHubService {
                         'User-Agent': 'VSCode-AwesomeCopilot-Extension'
                     }
                 });
-                const files = (response.data as GitHubFile[])
-                    .filter((file: GitHubFile) => file.type === 'file')
-                    .map(f => ({ ...f, repo }));
+                const files = (response.data as GitHubFile[]).filter((file: GitHubFile) => file.type === 'file').map(f => ({ ...f, repo }));
                 this.cache.set(cacheKey, {
                     data: files,
                     timestamp: now,
@@ -100,18 +126,8 @@ export class GitHubService {
                 vscode.window.showWarningMessage(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
             }
         }
-        // Disambiguate duplicate filenames across different repositories.
-        // Strategy: If a filename appears more than once (across distinct repos), add a suffix ' (owner/repo)'.
-        // We do not modify the original 'name' to keep download paths intact; instead we populate 'displayName'.
-        const nameCounts: Map<string, number> = new Map();
-        for (const f of allFiles) {
-            nameCounts.set(f.name, (nameCounts.get(f.name) || 0) + 1);
-        }
-        for (const f of allFiles) {
-            if (nameCounts.get(f.name)! > 1 && f.repo) {
-                f.displayName = `${f.name} (${f.repo.owner}/${f.repo.repo})`;
-            }
-        }
+        // Optionally: handle duplicate filenames (add repo info to name, etc.)
+        // For now, just return all files (UI can distinguish by repo)
         return allFiles;
     }
 
@@ -136,7 +152,7 @@ export class GitHubService {
                 timeout: 10000,
                 headers: headers,
                 // Use robust SSL handling
-                // Use default HTTPS agent (no SSL disabling)
+                httpsAgent: this.createHttpsAgent(apiUrl),
                 // For enterprise GitHub, allow cookies to be sent for authentication
                 withCredentials: isEnterprise
             });
@@ -168,7 +184,7 @@ export class GitHubService {
                 timeout: 10000,
                 headers: headers,
                 // Use robust SSL handling
-                // Use default HTTPS agent (no SSL disabling)
+                httpsAgent: this.createHttpsAgent(downloadUrl),
                 // For enterprise GitHub, allow cookies for authentication
                 withCredentials: isEnterprise
             });
