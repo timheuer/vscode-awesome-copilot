@@ -118,6 +118,21 @@
           "scope": "application",
           "title": "Enable GitHub Authentication",
           "markdownDescription": "**Enable GitHub Authentication**  \n\nWhen enabled, the extension will use VS Code's GitHub authentication to access the API with higher rate limits:  \n- **Authenticated:** 5,000 requests/hour  \n- **Unauthenticated:** 60 requests/hour  \n\nThe extension will prompt you to sign in when needed."
+        },
+        "awesome-copilot.logLevel": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug", "trace"],
+          "enumDescriptions": [
+            "Only show error messages",
+            "Show warnings and errors",
+            "Show informational messages, warnings, and errors",
+            "Show debug information and all above",
+            "Show all logging including trace information"
+          ],
+          "default": "info",
+          "description": "Set the logging level for the Awesome Copilot extension",
+          "scope": "application",
+          "title": "Log Level"
         }
       }
     },
@@ -265,11 +280,12 @@
     "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.25.3",
     "eslint": "^9.25.1",
+    "nerdbank-gitversioning": "^3.6.133",
     "npm-run-all": "^4.1.5",
-    "typescript": "^5.8.3",
-    "nerdbank-gitversioning": "^3.6.133"
+    "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@timheuer/vscode-ext-logger": "^0.1.35",
     "axios": "^1.11.0"
   }
 }

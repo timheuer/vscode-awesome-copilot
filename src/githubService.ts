@@ -5,6 +5,7 @@ import * as https from 'https';
 import { GitHubFile, CopilotCategory, CacheEntry, RepoSource } from './types';
 import { RepoStorage } from './repoStorage';
 import { StatusBarManager } from './statusBarManager';
+import { getLogger } from './logger';
 
 
 export class GitHubService {
@@ -63,7 +64,7 @@ export class GitHubService {
             }
             return true;
         } catch (error) {
-            console.error('GitHub authentication error:', error);
+            getLogger().error('GitHub authentication error:', error);
             return false;
         }
     }
@@ -131,7 +132,7 @@ export class GitHubService {
 
             if (isEnterprise && allowInsecureEnterpriseCerts) {
                 // Only allow insecure certificates when explicitly enabled by user
-                console.warn('⚠️ SECURITY WARNING: Using insecure HTTPS agent for enterprise GitHub server');
+                getLogger().warn('⚠️ SECURITY WARNING: Using insecure HTTPS agent for enterprise GitHub server');
                 return new https.Agent({
                     rejectUnauthorized: false,
                     checkServerIdentity: () => undefined,
@@ -146,7 +147,7 @@ export class GitHubService {
                 });
             }
         } catch (error) {
-            console.warn('Failed to create HTTPS agent:', error);
+            getLogger().warn('Failed to create HTTPS agent:', error);
         }
         return undefined;
     }
@@ -193,7 +194,7 @@ export class GitHubService {
                     return headers;
                 }
             } catch (authError) {
-                console.log('GitHub authentication failed (silent):', authError);
+                getLogger().debug('GitHub authentication failed (silent):', authError);
             }
         }
 
@@ -304,7 +305,7 @@ export class GitHubService {
                 
                 if (statusCode === 404) {
                     // 404 is expected when a repository doesn't have a particular category folder
-                    console.log(`Category '${category}' not found in ${repo.owner}/${repo.repo} (this is normal)`);
+                    getLogger().debug(`Category '${category}' not found in ${repo.owner}/${repo.repo} (this is normal)`);
                 } else {
                     // Show warning in status bar for other errors (auth, network, etc.)
                     this.statusBarManager.showWarning(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
@@ -414,11 +415,11 @@ export class GitHubService {
             if (statusCode === 404) {
                 // 404 is expected when a repository doesn't have a particular category folder
                 // Return empty array instead of throwing error
-                console.log(`Category '${category}' not found in ${repo.owner}/${repo.repo} (this is normal)`);
+                getLogger().debug(`Category '${category}' not found in ${repo.owner}/${repo.repo} (this is normal)`);
                 return [];
             } else {
                 // Log and throw error for other types of errors (auth, network, etc.)
-                console.error(`Failed to load ${category} from ${repo.owner}/${repo.repo}:`, error);
+                getLogger().error(`Failed to load ${category} from ${repo.owner}/${repo.repo}:`, error);
                 throw new Error(`Failed to load ${category} from ${repo.owner}/${repo.repo}: ${error}`);
             }
         }
@@ -469,7 +470,7 @@ export class GitHubService {
             }
             return response.data;
         } catch (error) {
-            console.error('Failed to fetch file content:', error);
+            getLogger().error('Failed to fetch file content:', error);
             throw new Error(`Failed to fetch file content: ${error}`);
         }
     }
@@ -508,7 +509,7 @@ export class GitHubService {
             this.cache.delete(key);
         }
 
-        console.log(`Cleared cache for repository: ${repo.owner}/${repo.repo}`);
+        getLogger().info(`Cleared cache for repository: ${repo.owner}/${repo.repo}`);
     }
 
     getCacheStatus(): string {

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { RepoSource } from './types';
+import { getLogger } from './logger';
 
 const STORAGE_KEY = 'awesomeCopilot.sources';
 const CONFIG_KEY = 'awesome-copilot.repositories';
@@ -62,7 +63,7 @@ export class RepoStorage {
       const config = vscode.workspace.getConfiguration();
       await config.update(CONFIG_KEY, sources, vscode.ConfigurationTarget.Global);
     } catch (error) {
-      console.warn('Failed to sync repository sources to settings:', error);
+      getLogger().warn('Failed to sync repository sources to settings:', error);
     }
   }
 
@@ -93,6 +94,6 @@ export class RepoStorage {
    */
   static async initializeFromSettings(context: vscode.ExtensionContext): Promise<void> {
     const sources = this.getSources(context);
-    console.log('Initialized repository sources:', sources.map(s => `${s.owner}/${s.repo}`).join(', '));
+    getLogger().info('Initialized repository sources:', sources.map(s => `${s.owner}/${s.repo}`).join(', '));
   }
 }

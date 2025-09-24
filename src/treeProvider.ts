@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { GitHubService } from './githubService';
 import { CopilotItem, CopilotCategory, CATEGORY_LABELS, GitHubFile, RepoSource } from './types';
 import { RepoStorage } from './repoStorage';
+import { getLogger } from './logger';
 
 export class AwesomeCopilotTreeItem extends vscode.TreeItem {
     public readonly copilotItem?: CopilotItem;
@@ -146,10 +147,10 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     if (statusCode === 404) {
                         // 404 is expected when a repository doesn't have a particular category folder
                         repoData.set(category, []);
-                        console.log(`Category '${category}' not found in ${repoKey} (this is normal)`);
+                        getLogger().debug(`Category '${category}' not found in ${repoKey} (this is normal)`);
                     } else {
                         // Show error for other types of errors (auth, network, etc.)
-                        console.error(`Failed to load ${category} from ${repoKey}: ${error}`);
+                        getLogger().error(`Failed to load ${category} from ${repoKey}: ${error}`);
                     }
                 } finally {
                     this.loading.delete(loadingKey);
@@ -262,7 +263,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     // 404 is expected when a repository doesn't have a particular category folder
                     // Set empty array and don't show error to user
                     repoData.set(category, []);
-                    console.log(`Category '${category}' not found in ${repoKey} (this is normal)`);
+                    getLogger().debug(`Category '${category}' not found in ${repoKey} (this is normal)`);
                 } else {
                     // Show error for other types of errors (auth, network, etc.)
                     vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
@@ -311,7 +312,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                         // 404 is expected when a repository doesn't have a particular category folder
                         // Set empty array and don't show error to user
                         repoData.set(category, []);
-                        console.log(`Category '${category}' not found in ${repoKey} (this is normal)`);
+                        getLogger().debug(`Category '${category}' not found in ${repoKey} (this is normal)`);
                     } else {
                         // Show error for other types of errors (auth, network, etc.)
                         vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
