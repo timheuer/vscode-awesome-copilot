@@ -335,6 +335,15 @@ export async function activate(context: vscode.ExtensionContext) {
 					sources.push(repoSource);
 					await RepoStorage.setSources(context, sources);
 
+					// Log the successful addition
+					logger.info('New repository source added:', {
+						owner,
+						repo,
+						baseUrl: baseUrl || 'github.com',
+						foundFolders,
+						displayUrl: baseUrl ? `${baseUrl}/${owner}/${repo}` : `${owner}/${repo}`
+					});
+
 					const displayUrl = baseUrl ? `${baseUrl}/${owner}/${repo}` : `${owner}/${repo}`;
 					
 					// Create success message with found folders
@@ -346,7 +355,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						}
 					}
 					
-						statusBarManager.showSuccess(`✅ Successfully added: ${displayUrl}`);				} catch (err: any) {
+					statusBarManager.showSuccess(`✅ Successfully added: ${displayUrl}`);				} catch (err: any) {
 					// Enhanced error handling with detailed diagnostics
 					const errorMessage = (err && err.message) || err;
 					const statusCode = err.response?.status;
