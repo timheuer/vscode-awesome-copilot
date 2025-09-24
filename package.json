@@ -20,7 +20,7 @@
   "engines": {
     "vscode": "^1.103.0"
   },
-    "badges": [
+  "badges": [
     {
       "url": "https://img.shields.io/visual-studio-marketplace/v/timheuer.vscode-awesome-copilot?label=VS%20Code%20Marketplace&color=brightgreen&logo=visualstudiocode",
       "href": "https://marketplace.visualstudio.com/items?itemName=TimHeuer.vscode-awesome-copilot",
@@ -35,9 +35,92 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:awesomeCopilotExplorer"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Awesome Copilot",
+      "properties": {
+        "awesome-copilot.repositories": {
+          "type": "array",
+          "title": "Repositories",
+          "description": "Configure GitHub repositories as content sources",
+          "default": [
+            {
+              "owner": "github",
+              "repo": "awesome-copilot",
+              "label": "Awesome Copilot"
+            }
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "owner": {
+                "type": "string",
+                "description": "Repository owner"
+              },
+              "repo": {
+                "type": "string",
+                "description": "Repository name"
+              },
+              "label": {
+                "type": "string",
+                "description": "Display name (optional)"
+              },
+              "baseUrl": {
+                "type": "string",
+                "description": "GitHub Enterprise URL (optional)"
+              }
+            }
+          },
+          "scope": "application"
+        },
+        "awesome-copilot.enterpriseToken": {
+          "type": "string",
+          "default": "",
+          "description": "Personal Access Token for GitHub Enterprise authentication",
+          "scope": "application",
+          "markdownDescription": "Required permissions: `repo`, `read:org`, `read:user`  \nCreate at: your-github-enterprise.com/settings/tokens"
+        },
+        "awesome-copilot.cacheTimeout": {
+          "type": "number",
+          "default": 3600000,
+          "minimum": 60000,
+          "maximum": 86400000,
+          "description": "Cache duration in milliseconds (default: 1 hour)",
+          "scope": "application"
+        },
+        "awesome-copilot.autoRefresh": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically refresh content on VS Code startup",
+          "scope": "application"
+        },
+        "awesome-copilot.showTreeView": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show/hide the Awesome Copilot tree view in the Explorer panel",
+          "scope": "application"
+        },
+        "awesome-copilot.allowInsecureEnterpriseCerts": {
+          "type": "boolean",
+          "default": false,
+          "description": "⚠️ SECURITY WARNING: Allow insecure certificates for Enterprise GitHub servers. Only enable this for trusted enterprise environments with self-signed certificates.",
+          "scope": "application",
+          "markdownDescription": "**⚠️ SECURITY WARNING:** This setting disables TLS certificate validation for Enterprise GitHub servers only. Only enable for trusted enterprise environments with self-signed certificates.  \n\n**Default: `false` (secure)**  \n\n**Note:** If you're getting certificate errors with enterprise GitHub, enable this temporarily to add your repository, then you can disable it again for better security."
+        },
+        "awesome-copilot.enableGithubAuth": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable GitHub authentication via VS Code to increase rate limits from 60 to 5,000 requests per hour",
+          "scope": "application",
+          "title": "Enable GitHub Authentication",
+          "markdownDescription": "**Enable GitHub Authentication**  \n\nWhen enabled, the extension will use VS Code's GitHub authentication to access the API with higher rate limits:  \n- **Authenticated:** 5,000 requests/hour  \n- **Unauthenticated:** 60 requests/hour  \n\nThe extension will prompt you to sign in when needed."
+        }
+      }
+    },
     "commands": [
       {
         "command": "awesome-copilot.refreshAwesomeCopilot",
@@ -53,6 +136,56 @@
         "command": "awesome-copilot.previewItem",
         "title": "Preview",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "awesome-copilot.manageSources",
+        "title": "Awesome Copilot: Manage Sources",
+        "icon": "$(repo)"
+      },
+      {
+        "command": "awesome-copilot.removeRepo",
+        "title": "Remove Repository",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "awesome-copilot.refreshRepo",
+        "title": "Refresh Repository",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "awesome-copilot.configureEnterpriseToken",
+        "title": "Awesome Copilot: Configure Enterprise Token",
+        "icon": "$(key)"
+      },
+      {
+        "command": "awesome-copilot.clearEnterpriseToken",
+        "title": "Awesome Copilot: Clear Enterprise Token",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "awesome-copilot.toggleTreeView",
+        "title": "Awesome Copilot: Toggle Tree View",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "awesome-copilot.showTreeView",
+        "title": "Awesome Copilot: Show Tree View",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "awesome-copilot.hideTreeView",
+        "title": "Awesome Copilot: Hide Tree View",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "awesome-copilot.signInToGitHub",
+        "title": "Awesome Copilot: Sign in to GitHub",
+        "icon": "$(github)"
+      },
+      {
+        "command": "awesome-copilot.signOutFromGitHub",
+        "title": "Awesome Copilot: Sign out from GitHub",
+        "icon": "$(sign-out)"
       }
     ],
     "views": {
@@ -60,7 +193,7 @@
         {
           "id": "awesomeCopilotExplorer",
           "name": "Awesome Copilot",
-          "when": "true",
+          "when": "config.awesome-copilot.showTreeView",
           "icon": "$(copilot)"
         }
       ]
@@ -69,6 +202,11 @@
       "view/title": [
         {
           "command": "awesome-copilot.refreshAwesomeCopilot",
+          "when": "view == awesomeCopilotExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "awesome-copilot.manageSources",
           "when": "view == awesomeCopilotExplorer",
           "group": "navigation"
         }
@@ -83,6 +221,21 @@
           "command": "awesome-copilot.previewItem",
           "when": "view == awesomeCopilotExplorer && viewItem == copilotFile",
           "group": "inline@2"
+        },
+        {
+          "command": "awesome-copilot.refreshRepo",
+          "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
+          "group": "inline@1"
+        },
+        {
+          "command": "awesome-copilot.removeRepo",
+          "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
+          "group": "inline@2"
+        },
+        {
+          "command": "awesome-copilot.removeRepo",
+          "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
+          "group": "1_repo@1"
         }
       ]
     }
