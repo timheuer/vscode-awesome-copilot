@@ -40,6 +40,18 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "awesomeCopilot",
+          "title": "Awesome Copilot",
+          "icon": {
+            "light": "resources/awesome-copilot-light.svg",
+            "dark": "resources/awesome-copilot-dark.svg"
+          }
+        }
+      ]
+    },
     "configuration": {
       "title": "Awesome Copilot",
       "properties": {
@@ -204,7 +216,7 @@
       }
     ],
     "views": {
-      "explorer": [
+      "awesomeCopilot": [
         {
           "id": "awesomeCopilotExplorer",
           "name": "Awesome Copilot",

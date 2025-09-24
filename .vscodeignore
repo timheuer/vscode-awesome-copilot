@@ -16,3 +16,4 @@ version.json
 package.json
 .github/**
 docs/**
+test-extension.sh
