@@ -190,17 +190,10 @@ export class GitHubService {
                 });
                 if (session && session.accessToken) {
                     headers['Authorization'] = `token ${session.accessToken}`;
-                    const debugMode = config.get<boolean>('debugMode', false);
-                    if (debugMode) {
-                        console.log(`GitHub authentication successful for ${isEnterprise ? 'enterprise' : 'public'} GitHub`);
-                    }
                     return headers;
                 }
             } catch (authError) {
-                const debugMode = config.get<boolean>('debugMode', false);
-                if (debugMode) {
-                    console.log('GitHub authentication failed (silent):', authError);
-                }
+                console.log('GitHub authentication failed (silent):', authError);
             }
         }
 

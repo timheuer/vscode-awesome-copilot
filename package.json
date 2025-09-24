@@ -98,12 +98,6 @@
           "description": "Automatically refresh content on VS Code startup",
           "scope": "application"
         },
-        "awesome-copilot.debugMode": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable debug logging for troubleshooting",
-          "scope": "application"
-        },
         "awesome-copilot.showTreeView": {
           "type": "boolean",
           "default": true,
