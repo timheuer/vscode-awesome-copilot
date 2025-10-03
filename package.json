@@ -213,6 +213,11 @@
         "command": "awesome-copilot.signOutFromGitHub",
         "title": "Awesome Copilot: Sign out from GitHub",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "awesome-copilot.openRepoInBrowser",
+        "title": "Open Repository in Browser",
+        "icon": "$(github)"
       }
     ],
     "views": {
@@ -225,17 +230,28 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "awesomeCopilotExplorer",
+        "contents": "Welcome to Awesome Copilot! 🚀\n\nBrowse and download GitHub Copilot customizations from curated repositories.\n\n[Manage Sources](command:awesome-copilot.manageSources)\n\nNo repositories configured or no content available. Add a repository to get started!"
+      }
+    ],
     "menus": {
       "view/title": [
         {
+          "command": "awesome-copilot.openRepoInBrowser",
+          "when": "view == awesomeCopilotExplorer",
+          "group": "navigation@1"
+        },
+        {
           "command": "awesome-copilot.refreshAwesomeCopilot",
           "when": "view == awesomeCopilotExplorer",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "awesome-copilot.manageSources",
           "when": "view == awesomeCopilotExplorer",
-          "group": "navigation"
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [

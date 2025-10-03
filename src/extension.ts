@@ -698,6 +698,40 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	// Register command to open repository in browser
+	const openRepoInBrowserDisposable = vscode.commands.registerCommand('awesome-copilot.openRepoInBrowser', async () => {
+		const sources = RepoStorage.getSources(context);
+		if (sources.length === 0) {
+			vscode.window.showInformationMessage('No repository sources configured. Use "Manage Sources" to add one.');
+			return;
+		}
+
+		// If only one source, open it directly
+		if (sources.length === 1) {
+			const repo = sources[0];
+			const repoUrl = repo.baseUrl ? `${repo.baseUrl}/${repo.owner}/${repo.repo}` : `https://github.com/${repo.owner}/${repo.repo}`;
+			await vscode.env.openExternal(vscode.Uri.parse(repoUrl));
+			return;
+		}
+
+		// If multiple sources, let user pick which one to open
+		const selected = await vscode.window.showQuickPick(
+			sources.map(s => ({
+				label: s.label || `${s.owner}/${s.repo}`,
+				description: `${s.owner}/${s.repo}`,
+				repo: s
+			})),
+			{ placeHolder: 'Select a repository to open in browser' }
+		);
+
+		if (selected) {
+			const repoUrl = selected.repo.baseUrl 
+				? `${selected.repo.baseUrl}/${selected.repo.owner}/${selected.repo.repo}` 
+				: `https://github.com/${selected.repo.owner}/${selected.repo.repo}`;
+			await vscode.env.openExternal(vscode.Uri.parse(repoUrl));
+		}
+	});
+
 	context.subscriptions.push(
 		refreshDisposable,
 		downloadDisposable,
@@ -712,6 +746,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		hideTreeViewDisposable,
 		signInToGitHubDisposable,
 		signOutFromGitHubDisposable,
+		openRepoInBrowserDisposable,
 		configChangeDisposable,
 		treeView,
 		previewProviderDisposable,
