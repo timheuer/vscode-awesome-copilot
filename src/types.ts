@@ -35,7 +35,8 @@ export interface CopilotItem {
 export enum CopilotCategory {
     ChatModes = 'chatmodes',
     Instructions = 'instructions',
-    Prompts = 'prompts'
+    Prompts = 'prompts',
+    Agents = 'agents'
 }
 
 
@@ -50,11 +51,13 @@ export interface CacheEntry {
 export const CATEGORY_LABELS: Record<CopilotCategory, string> = {
     [CopilotCategory.ChatModes]: 'Chat Modes',
     [CopilotCategory.Instructions]: 'Instructions',
-    [CopilotCategory.Prompts]: 'Prompts'
+    [CopilotCategory.Prompts]: 'Prompts',
+    [CopilotCategory.Agents]: 'Agents'
 };
 
 export const FOLDER_PATHS: Record<CopilotCategory, string> = {
     [CopilotCategory.ChatModes]: '.github/chatmodes',
     [CopilotCategory.Instructions]: '.github/instructions',
-    [CopilotCategory.Prompts]: '.github/prompts'
+    [CopilotCategory.Prompts]: '.github/prompts',
+    [CopilotCategory.Agents]: '.github/agents'
 };

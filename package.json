@@ -14,7 +14,7 @@
   },
   "qna": "https://github.com/timheuer/vscode-awesome-copilot/issues",
   "homepage": "https://github.com/timheuer/vscode-awesome-copilot",
-  "description": "Browse and download instructions, prompts, and chat modes from the Awesome Copilot community",
+  "description": "Browse and download instructions, prompts, chat modes, and agents from the Awesome Copilot community",
   "version": "0.0.0-placeholder",
   "icon": "icon.png",
   "engines": {
