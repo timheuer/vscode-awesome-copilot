@@ -42,6 +42,9 @@ export class AwesomeCopilotTreeItem extends vscode.TreeItem {
                 case CopilotCategory.Prompts:
                     this.iconPath = new vscode.ThemeIcon('lightbulb');
                     break;
+                case CopilotCategory.Agents:
+                    this.iconPath = new vscode.ThemeIcon('robot');
+                    break;
             }
         } else if (itemType === 'category') {
             this.contextValue = 'copilotCategory';
@@ -122,7 +125,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         }
 
         const repoData = this.repoItems.get(repoKey)!;
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts];
+        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
 
         for (const category of categories) {
             const loadingKey = `${repoKey}-${category}`;
@@ -208,6 +211,14 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     undefined,
                     CopilotCategory.Prompts,
                     element.repo
+                ),
+                new AwesomeCopilotTreeItem(
+                    CATEGORY_LABELS[CopilotCategory.Agents],
+                    vscode.TreeItemCollapsibleState.Collapsed,
+                    'category',
+                    undefined,
+                    CopilotCategory.Agents,
+                    element.repo
                 )
             ];
         }
@@ -283,7 +294,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         }
 
         const repos = RepoStorage.getSources(this.context);
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts];
+        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
 
         for (const repo of repos) {
             const repoKey = `${repo.owner}/${repo.repo}`;
