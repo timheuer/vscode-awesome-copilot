@@ -213,29 +213,40 @@
         "command": "awesome-copilot.signOutFromGitHub",
         "title": "Awesome Copilot: Sign out from GitHub",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "awesome-copilot.openRepoInBrowser",
+        "title": "Open Repository in Browser",
+        "icon": "$(github)"
       }
     ],
     "views": {
-      "awesomeCopilot": [
+      "explorer": [
         {
           "id": "awesomeCopilotExplorer",
           "name": "Awesome Copilot",
-          "when": "config.awesome-copilot.showTreeView",
-          "icon": "$(copilot)"
+          "icon": "$(robot)"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "awesomeCopilotExplorer",
+        "contents": "No repositories configured.\n[Manage Sources](command:awesome-copilot.manageSources)\nBrowse and download instructions, prompts, chat modes, and agents from the Awesome Copilot community.",
+        "when": "config.awesome-copilot.showTreeView"
+      }
+    ],
     "menus": {
       "view/title": [
         {
           "command": "awesome-copilot.refreshAwesomeCopilot",
           "when": "view == awesomeCopilotExplorer",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "awesome-copilot.manageSources",
           "when": "view == awesomeCopilotExplorer",
-          "group": "navigation"
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -250,14 +261,19 @@
           "group": "inline@2"
         },
         {
-          "command": "awesome-copilot.refreshRepo",
+          "command": "awesome-copilot.openRepoInBrowser",
           "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
           "group": "inline@1"
         },
         {
-          "command": "awesome-copilot.removeRepo",
+          "command": "awesome-copilot.refreshRepo",
           "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
           "group": "inline@2"
+        },
+        {
+          "command": "awesome-copilot.removeRepo",
+          "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
+          "group": "inline@3"
         },
         {
           "command": "awesome-copilot.removeRepo",
