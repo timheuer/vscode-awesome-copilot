@@ -221,28 +221,23 @@
       }
     ],
     "views": {
-      "awesomeCopilot": [
+      "explorer": [
         {
           "id": "awesomeCopilotExplorer",
           "name": "Awesome Copilot",
-          "when": "config.awesome-copilot.showTreeView",
-          "icon": "$(copilot)"
+          "icon": "$(robot)"
         }
       ]
     },
     "viewsWelcome": [
       {
         "view": "awesomeCopilotExplorer",
-        "contents": "Welcome to Awesome Copilot! 🚀\n\nBrowse and download GitHub Copilot customizations from curated repositories.\n\n[Manage Sources](command:awesome-copilot.manageSources)\n\nNo repositories configured or no content available. Add a repository to get started!"
+        "contents": "No repositories configured.\n[Manage Sources](command:awesome-copilot.manageSources)\nBrowse and download instructions, prompts, chat modes, and agents from the Awesome Copilot community.",
+        "when": "config.awesome-copilot.showTreeView"
       }
     ],
     "menus": {
       "view/title": [
-        {
-          "command": "awesome-copilot.openRepoInBrowser",
-          "when": "view == awesomeCopilotExplorer",
-          "group": "navigation@1"
-        },
         {
           "command": "awesome-copilot.refreshAwesomeCopilot",
           "when": "view == awesomeCopilotExplorer",
@@ -266,14 +261,19 @@
           "group": "inline@2"
         },
         {
-          "command": "awesome-copilot.refreshRepo",
+          "command": "awesome-copilot.openRepoInBrowser",
           "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
           "group": "inline@1"
         },
         {
-          "command": "awesome-copilot.removeRepo",
+          "command": "awesome-copilot.refreshRepo",
           "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
           "group": "inline@2"
+        },
+        {
+          "command": "awesome-copilot.removeRepo",
+          "when": "view == awesomeCopilotExplorer && viewItem == copilotRepo",
+          "group": "inline@3"
         },
         {
           "command": "awesome-copilot.removeRepo",

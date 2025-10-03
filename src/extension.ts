@@ -699,7 +699,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	});
 
 	// Register command to open repository in browser
-	const openRepoInBrowserDisposable = vscode.commands.registerCommand('awesome-copilot.openRepoInBrowser', async () => {
+	const openRepoInBrowserDisposable = vscode.commands.registerCommand('awesome-copilot.openRepoInBrowser', async (treeItem?: AwesomeCopilotTreeItem) => {
+		// If called with a specific tree item (from inline context menu), use that repo
+		if (treeItem && treeItem.itemType === 'repo' && treeItem.repo) {
+			const repo = treeItem.repo;
+			const repoUrl = repo.baseUrl ? `${repo.baseUrl}/${repo.owner}/${repo.repo}` : `https://github.com/${repo.owner}/${repo.repo}`;
+			await vscode.env.openExternal(vscode.Uri.parse(repoUrl));
+			return;
+		}
+
+		// Otherwise, fallback to the original behavior for toolbar clicks
 		const sources = RepoStorage.getSources(context);
 		if (sources.length === 0) {
 			vscode.window.showInformationMessage('No repository sources configured. Use "Manage Sources" to add one.');
