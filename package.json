@@ -35,6 +35,9 @@
   "categories": [
     "Other"
   ],
+  "activationEvents": [
+    "onView:awesomeCopilotExplorer"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
