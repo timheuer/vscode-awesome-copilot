@@ -486,21 +486,33 @@ export async function activate(context: vscode.ExtensionContext) {
 		statusBarManager.showInfo('Repository sources updated from settings');
 	});
 
-	// Register providers
+	// Register providers - both views share the same data provider instance
 	const treeView = vscode.window.createTreeView('awesomeCopilotExplorer', {
 		treeDataProvider: treeProvider,
 		showCollapseAll: true
 	});
 
-	// Auto-preview when selecting a file
-	treeView.onDidChangeSelection(async (e) => {
+	// Register secondary view in explorer (shares same data provider)
+	const treeViewSecondary = vscode.window.createTreeView('awesomeCopilotExplorerSecondary', {
+		treeDataProvider: treeProvider,
+		showCollapseAll: true
+	});
+
+	// Trigger initial load for both views
+	treeProvider.refresh();
+
+	// Auto-preview when selecting a file (both views)
+	const handleSelection = async (e: vscode.TreeViewSelectionChangeEvent<any>) => {
 		if (e.selection.length > 0) {
 			const selectedItem = e.selection[0];
 			if (selectedItem.copilotItem) {
 				await previewCopilotItem(selectedItem.copilotItem, githubService, previewProvider);
 			}
 		}
-	});
+	};
+
+	treeView.onDidChangeSelection(handleSelection);
+	treeViewSecondary.onDidChangeSelection(handleSelection);
 
 	const previewProviderDisposable = vscode.workspace.registerTextDocumentContentProvider('copilot-preview', previewProvider);
 
@@ -758,6 +770,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		openRepoInBrowserDisposable,
 		configChangeDisposable,
 		treeView,
+		treeViewSecondary,
 		previewProviderDisposable,
 		statusBarManager
 	);
