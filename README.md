@@ -6,7 +6,7 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 
 ## Features
 
-- **🔍 Browse**: Explore chat modes, instructions, prompts, and agents in a convenient tree view
+- **🔍 Browse**: Explore collections, instructions, prompts, and agents in a convenient tree view
 - **📖 Preview**: View file content before downloading
 - **⬇️ Download**: Save files to appropriate `.github/` folders in your workspace
 - **🔃 Refresh**: Update repository data with manual refresh
@@ -15,7 +15,7 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 ## How to Use
 
 1. **Open the Extension**: Click the new Activity Bar icon (checkmark document) titled **Awesome Copilot**. (Previously this view appeared under Explorer; it now has its own dedicated container with a proper icon.)
-2. **Browse Categories**: Expand Chat Modes, Instructions, Prompts, or Agents sections
+2. **Browse Categories**: Expand Collections, Instructions, Prompts, or Agents sections
 3. **Preview Content**: Click the preview icon on any file to see its content
 4. **Download Files**: Click the download icon to save files to your workspace
 5. **Refresh Data**: Click the refresh icon in the view title to update repository data
@@ -24,7 +24,7 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 
 Downloaded files are organized in your workspace as follows:
 
-- **Chat Modes** → `.github/chatmodes/`
+- **Collections** → `.github/collections/`
 - **Instructions** → `.github/instructions/`  
 - **Prompts** → `.github/prompts/`
 - **Agents** → `.github/agents/`

@@ -14,7 +14,7 @@
   },
   "qna": "https://github.com/timheuer/vscode-awesome-copilot/issues",
   "homepage": "https://github.com/timheuer/vscode-awesome-copilot",
-  "description": "Browse and download instructions, prompts, chat modes, and agents from the Awesome Copilot community",
+  "description": "Browse and download instructions, prompts, collections, and agents from the Awesome Copilot community",
   "version": "0.0.0-placeholder",
   "icon": "icon.png",
   "engines": {
@@ -232,7 +232,7 @@
     "viewsWelcome": [
       {
         "view": "awesomeCopilotExplorer",
-        "contents": "No repositories configured.\n[Manage Sources](command:awesome-copilot.manageSources)\nBrowse and download instructions, prompts, chat modes, and agents from the Awesome Copilot community.",
+        "contents": "No repositories configured.\n[Manage Sources](command:awesome-copilot.manageSources)\nBrowse and download instructions, prompts, collections, and agents from the Awesome Copilot community.",
         "when": "config.awesome-copilot.showTreeView"
       }
     ],

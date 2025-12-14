@@ -33,7 +33,7 @@ export class AwesomeCopilotTreeItem extends vscode.TreeItem {
             );
             // Set appropriate icon based on category
             switch (copilotItem.category) {
-                case CopilotCategory.ChatModes:
+                case CopilotCategory.Collections:
                     this.iconPath = new vscode.ThemeIcon('comment-discussion');
                     break;
                 case CopilotCategory.Instructions:
@@ -125,7 +125,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         }
 
         const repoData = this.repoItems.get(repoKey)!;
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
+        const categories = [CopilotCategory.Collections, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
 
         for (const category of categories) {
             const loadingKey = `${repoKey}-${category}`;
@@ -189,11 +189,11 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
             // Return categories for this repository
             return [
                 new AwesomeCopilotTreeItem(
-                    CATEGORY_LABELS[CopilotCategory.ChatModes],
+                    CATEGORY_LABELS[CopilotCategory.Collections],
                     vscode.TreeItemCollapsibleState.Collapsed,
                     'category',
                     undefined,
-                    CopilotCategory.ChatModes,
+                    CopilotCategory.Collections,
                     element.repo
                 ),
                 new AwesomeCopilotTreeItem(
@@ -294,7 +294,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         }
 
         const repos = RepoStorage.getSources(this.context);
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
+        const categories = [CopilotCategory.Collections, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
 
         for (const repo of repos) {
             const repoKey = `${repo.owner}/${repo.repo}`;

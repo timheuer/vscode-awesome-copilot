@@ -165,7 +165,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Validate repo structure (check that at least one content folder exists)
 				try {
-					const cats = ['chatmodes', 'instructions', 'prompts', 'agents'];
+					const cats = ['collections', 'instructions', 'prompts', 'agents'];
 					const foundFolders: string[] = [];
 					const missingFolders: string[] = [];
 
@@ -386,7 +386,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						});
 
 						const retryChoice = await vscode.window.showErrorMessage(
-							`🔍 Repository Not Found or No Valid Content\n\nThe repository ${owner}/${repo} was not found or doesn't contain any of the required content folders (chatmodes, instructions, prompts).\n\nPlease verify:\n1. Repository exists at: ${repoUrl}\n2. Repository is public or you have access\n3. Repository contains at least one of: chatmodes, instructions, or prompts folders\n\nNote: A repository only needs to have ONE of these folders, not all of them.\n\nDebug: Input="${input}", Owner="${owner}", Repo="${repo}"`,
+							`🔍 Repository Not Found or No Valid Content\n\nThe repository ${owner}/${repo} was not found or doesn't contain any of the required content folders (collections, instructions, prompts).\n\nPlease verify:\n1. Repository exists at: ${repoUrl}\n2. Repository is public or you have access\n3. Repository contains at least one of: collections, instructions, or prompts folders\n\nNote: A repository only needs to have ONE of these folders, not all of them.\n\nDebug: Input="${input}", Owner="${owner}", Repo="${repo}"`,
 							'Check Repository',
 							'Retry',
 							'Cancel'

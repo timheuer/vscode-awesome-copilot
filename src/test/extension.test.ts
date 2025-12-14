@@ -22,7 +22,7 @@ suite('Extension Test Suite', () => {
 	test('GitHub Service can fetch chat modes', async () => {
 		const service = new GitHubService();
 		try {
-			const files = await service.getFiles(CopilotCategory.ChatModes);
+			const files = await service.getFiles(CopilotCategory.Collections);
 			assert.ok(Array.isArray(files));
 			console.log(`Found ${files.length} chat mode files`);
 		} catch (error) {
