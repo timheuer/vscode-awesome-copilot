@@ -290,7 +290,15 @@ export class GitHubService {
                     }
                 }
 
-                const files = (response.data as GitHubFile[]).filter((file: GitHubFile) => file.type === 'file').map(f => ({ ...f, repo }));
+                // For Skills category, show directories (folders); for other categories, show files
+                const files = (response.data as GitHubFile[])
+                    .filter((file: GitHubFile) => {
+                        if (category === CopilotCategory.Skills) {
+                            return file.type === 'dir';
+                        }
+                        return file.type === 'file';
+                    })
+                    .map(f => ({ ...f, repo }));
                 this.cache.set(cacheKey, {
                     data: files,
                     timestamp: now,
@@ -395,8 +403,14 @@ export class GitHubService {
                 response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
             }
 
+            // For Skills category, show directories (folders); for other categories, show files
             const files = (response.data as GitHubFile[])
-                .filter((file: GitHubFile) => file.type === 'file')
+                .filter((file: GitHubFile) => {
+                    if (category === CopilotCategory.Skills) {
+                        return file.type === 'dir';
+                    }
+                    return file.type === 'file';
+                })
                 .map(f => ({ ...f, repo }));
 
             this.cache.set(cacheKey, {
@@ -472,6 +486,85 @@ export class GitHubService {
         } catch (error) {
             getLogger().error('Failed to fetch file content:', error);
             throw new Error(`Failed to fetch file content: ${error}`);
+        }
+    }
+
+    // Get contents of a directory recursively (for Skills folders)
+    async getDirectoryContents(repo: RepoSource, path: string): Promise<GitHubFile[]> {
+        try {
+            const apiUrl = this.buildApiUrlForPath(repo, path);
+            const isEnterprise = !!repo.baseUrl;
+            const headers = await this.createRequestHeaders(isEnterprise);
+
+            const axiosConfig: any = {
+                timeout: 10000,
+                headers: headers,
+                withCredentials: isEnterprise
+            };
+
+            if (isEnterprise) {
+                const httpsAgent = this.createHttpsAgent(apiUrl);
+                if (httpsAgent) {
+                    axiosConfig.httpsAgent = httpsAgent;
+                    axiosConfig.agent = httpsAgent;
+                }
+            }
+
+            let response;
+            const config = vscode.workspace.getConfiguration('awesome-copilot');
+            const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
+
+            if (isEnterprise && allowInsecureEnterpriseCerts) {
+                const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+                try {
+                    response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+                } finally {
+                    if (originalRejectUnauthorized === undefined) {
+                        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                    } else {
+                        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                    }
+                }
+            } else {
+                response = await axios.get<GitHubFile[]>(apiUrl, axiosConfig);
+            }
+
+            const contents: GitHubFile[] = [];
+            const items = response.data as GitHubFile[];
+
+            // Add all items first
+            for (const item of items) {
+                contents.push({ ...item, repo });
+            }
+
+            // Recursively get subdirectory contents in parallel for better performance
+            const subdirs = items.filter(item => item.type === 'dir');
+            if (subdirs.length > 0) {
+                const subContentPromises = subdirs.map(dir => this.getDirectoryContents(repo, dir.path));
+                const subContentsArrays = await Promise.all(subContentPromises);
+                
+                // Flatten and add all subdirectory contents
+                for (const subContents of subContentsArrays) {
+                    contents.push(...subContents);
+                }
+            }
+
+            return contents;
+        } catch (error) {
+            getLogger().error(`Failed to fetch directory contents for ${path}:`, error);
+            throw new Error(`Failed to fetch directory contents: ${error}`);
+        }
+    }
+
+    // Build API URL for a specific path
+    private buildApiUrlForPath(repo: RepoSource, path: string): string {
+        if (repo.baseUrl) {
+            const baseUrl = repo.baseUrl.replace(/\/$/, '');
+            return `${baseUrl}/api/v3/repos/${repo.owner}/${repo.repo}/contents/${path}`;
+        } else {
+            return `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${path}`;
         }
     }
 

@@ -29,4 +29,15 @@ suite('Extension Test Suite', () => {
 			console.warn('Network test failed - this is expected in CI/offline environments:', error);
 		}
 	}).timeout(15000);
+
+	test('GitHub Service can fetch skills', async () => {
+		const service = new GitHubService();
+		try {
+			const files = await service.getFiles(CopilotCategory.Skills);
+			assert.ok(Array.isArray(files));
+			console.log(`Found ${files.length} skills files`);
+		} catch (error) {
+			console.warn('Network test failed - this is expected in CI/offline environments:', error);
+		}
+	}).timeout(15000);
 });

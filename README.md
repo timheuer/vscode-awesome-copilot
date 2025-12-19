@@ -6,7 +6,7 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 
 ## Features
 
-- **🔍 Browse**: Explore chat modes, instructions, prompts, and agents in a convenient tree view
+- **🔍 Browse**: Explore chat modes, instructions, prompts, agents, and skills in a convenient tree view
 - **📖 Preview**: View file content before downloading
 - **⬇️ Download**: Save files to appropriate `.github/` folders in your workspace
 - **🔃 Refresh**: Update repository data with manual refresh
@@ -15,7 +15,7 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 ## How to Use
 
 1. **Open the Extension**: Click the new Activity Bar icon (checkmark document) titled **Awesome Copilot**. (Previously this view appeared under Explorer; it now has its own dedicated container with a proper icon.)
-2. **Browse Categories**: Expand Chat Modes, Instructions, Prompts, or Agents sections
+2. **Browse Categories**: Expand Chat Modes, Instructions, Prompts, Agents, or Skills sections
 3. **Preview Content**: Click the preview icon on any file to see its content
 4. **Download Files**: Click the download icon to save files to your workspace
 5. **Refresh Data**: Click the refresh icon in the view title to update repository data
@@ -24,12 +24,15 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 
 Downloaded files are organized in your workspace as follows:
 
-- **Chat Modes** → `.github/chatmodes/`
-- **Instructions** → `.github/instructions/`  
-- **Prompts** → `.github/prompts/`
-- **Agents** → `.github/agents/`
+- **Chat Modes** → `.github/chatmodes/` (individual files)
+- **Instructions** → `.github/instructions/` (individual files)
+- **Prompts** → `.github/prompts/` (individual files)
+- **Agents** → `.github/agents/` (individual files)
+- **Skills** → `.github/skills/` (entire folders with SKILL.md and supporting files)
 
 These folders will be created automatically if they don't exist.
+
+**Note:** Skills are unique in that each skill is a complete folder containing a `SKILL.md` file and potentially other supporting files. When you download a skill, the entire folder structure is preserved.
 
 ## Requirements
 
