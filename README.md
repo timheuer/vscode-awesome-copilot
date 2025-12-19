@@ -24,13 +24,15 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 
 Downloaded files are organized in your workspace as follows:
 
-- **Chat Modes** → `.github/chatmodes/`
-- **Instructions** → `.github/instructions/`  
-- **Prompts** → `.github/prompts/`
-- **Agents** → `.github/agents/`
-- **Skills** → `.github/skills/`
+- **Chat Modes** → `.github/chatmodes/` (individual files)
+- **Instructions** → `.github/instructions/` (individual files)
+- **Prompts** → `.github/prompts/` (individual files)
+- **Agents** → `.github/agents/` (individual files)
+- **Skills** → `.github/skills/` (entire folders with SKILL.md and supporting files)
 
 These folders will be created automatically if they don't exist.
+
+**Note:** Skills are unique in that each skill is a complete folder containing a `SKILL.md` file and potentially other supporting files. When you download a skill, the entire folder structure is preserved.
 
 ## Requirements
 
