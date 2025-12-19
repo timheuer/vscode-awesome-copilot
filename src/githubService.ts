@@ -534,12 +534,19 @@ export class GitHubService {
             const contents: GitHubFile[] = [];
             const items = response.data as GitHubFile[];
 
+            // Add all items first
             for (const item of items) {
                 contents.push({ ...item, repo });
+            }
+
+            // Recursively get subdirectory contents in parallel for better performance
+            const subdirs = items.filter(item => item.type === 'dir');
+            if (subdirs.length > 0) {
+                const subContentPromises = subdirs.map(dir => this.getDirectoryContents(repo, dir.path));
+                const subContentsArrays = await Promise.all(subContentPromises);
                 
-                // Recursively get subdirectory contents
-                if (item.type === 'dir') {
-                    const subContents = await this.getDirectoryContents(repo, item.path);
+                // Flatten and add all subdirectory contents
+                for (const subContents of subContentsArrays) {
                     contents.push(...subContents);
                 }
             }

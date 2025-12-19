@@ -820,7 +820,11 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 			for (const fileItem of contents) {
 				if (fileItem.type === 'file') {
 					// Calculate relative path within the skill folder
-					const relativePath = fileItem.path.replace(item.file.path + '/', '');
+					// Remove the skill folder path prefix to get the relative path
+					const skillFolderPath = item.file.path.endsWith('/') ? item.file.path : item.file.path + '/';
+					const relativePath = fileItem.path.startsWith(skillFolderPath) 
+						? fileItem.path.substring(skillFolderPath.length)
+						: fileItem.path;
 					const targetFilePath = path.join(targetSkillPath, relativePath);
 
 					// Create parent directory if needed
@@ -934,9 +938,15 @@ async function previewCopilotItem(item: CopilotItem, githubService: GitHubServic
 				await vscode.window.showTextDocument(doc, { preview: true });
 			} else {
 				// No SKILL.md found, show list of files in the folder
+				const skillFolderPath = item.file.path.endsWith('/') ? item.file.path : item.file.path + '/';
 				const fileList = contents
 					.filter(f => f.type === 'file')
-					.map(f => `- ${f.path.replace(item.file.path + '/', '')}`)
+					.map(f => {
+						const relativePath = f.path.startsWith(skillFolderPath) 
+							? f.path.substring(skillFolderPath.length)
+							: f.path;
+						return `- ${relativePath}`;
+					})
 					.join('\n');
 				
 				item.content = `# ${item.name}\n\n**Skill Folder Contents:**\n\n${fileList}\n\nDownload this skill to get all files.`;
