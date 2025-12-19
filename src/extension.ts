@@ -165,7 +165,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Validate repo structure (check that at least one content folder exists)
 				try {
-					const cats = ['chatmodes', 'instructions', 'prompts', 'agents'];
+					const cats = ['chatmodes', 'instructions', 'prompts', 'agents', 'skills'];
 					const foundFolders: string[] = [];
 					const missingFolders: string[] = [];
 

@@ -45,6 +45,9 @@ export class AwesomeCopilotTreeItem extends vscode.TreeItem {
                 case CopilotCategory.Agents:
                     this.iconPath = new vscode.ThemeIcon('robot');
                     break;
+                case CopilotCategory.Skills:
+                    this.iconPath = new vscode.ThemeIcon('tools');
+                    break;
             }
         } else if (itemType === 'category') {
             this.contextValue = 'copilotCategory';
@@ -125,7 +128,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         }
 
         const repoData = this.repoItems.get(repoKey)!;
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
+        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents, CopilotCategory.Skills];
 
         for (const category of categories) {
             const loadingKey = `${repoKey}-${category}`;
@@ -219,6 +222,14 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     undefined,
                     CopilotCategory.Agents,
                     element.repo
+                ),
+                new AwesomeCopilotTreeItem(
+                    CATEGORY_LABELS[CopilotCategory.Skills],
+                    vscode.TreeItemCollapsibleState.Collapsed,
+                    'category',
+                    undefined,
+                    CopilotCategory.Skills,
+                    element.repo
                 )
             ];
         }
@@ -294,7 +305,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         }
 
         const repos = RepoStorage.getSources(this.context);
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents];
+        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents, CopilotCategory.Skills];
 
         for (const repo of repos) {
             const repoKey = `${repo.owner}/${repo.repo}`;
