@@ -41,21 +41,21 @@ export class AwesomeCopilotTreeItem extends vscode.TreeItem {
                 );
                 // Set appropriate icon based on category
                 switch (copilotItem.category) {
-                case CopilotCategory.Collections:
-                    this.iconPath = new vscode.ThemeIcon('comment-discussion');
-                    break;
-                case CopilotCategory.Instructions:
-                    this.iconPath = new vscode.ThemeIcon('book');
-                    break;
-                case CopilotCategory.Prompts:
-                    this.iconPath = new vscode.ThemeIcon('lightbulb');
-                    break;
-                case CopilotCategory.Agents:
-                    this.iconPath = new vscode.ThemeIcon('robot');
-                    break;
-                case CopilotCategory.Skills:
-                    this.iconPath = new vscode.ThemeIcon('tools');
-                    break;
+                    case CopilotCategory.Collections:
+                        this.iconPath = new vscode.ThemeIcon('comment-discussion');
+                        break;
+                    case CopilotCategory.Instructions:
+                        this.iconPath = new vscode.ThemeIcon('book');
+                        break;
+                    case CopilotCategory.Prompts:
+                        this.iconPath = new vscode.ThemeIcon('lightbulb');
+                        break;
+                    case CopilotCategory.Agents:
+                        this.iconPath = new vscode.ThemeIcon('robot');
+                        break;
+                    case CopilotCategory.Skills:
+                        this.iconPath = new vscode.ThemeIcon('tools');
+                        break;
                 }
             }
         } else if (itemType === 'category') {
