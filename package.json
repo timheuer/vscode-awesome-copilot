@@ -145,6 +145,12 @@
           "description": "Set the logging level for the Awesome Copilot extension",
           "scope": "application",
           "title": "Log Level"
+        },
+        "awesome-copilot.checkForUpdates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for updates to downloaded items and notify when newer versions are available",
+          "scope": "application"
         }
       }
     },

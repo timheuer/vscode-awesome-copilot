@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { RepoStorage } from './repoStorage';
 import { StatusBarManager } from './statusBarManager';
+import { DownloadTracker } from './downloadTracker';
 import axios from 'axios';
 import * as https from 'https';
 import { createLogger, createLoggerWithConfigMonitoring, Logger } from '@timheuer/vscode-ext-logger';
@@ -473,7 +474,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize services
 	const statusBarManager = new StatusBarManager();
 	const githubService = new GitHubService(statusBarManager);
-	const treeProvider = new AwesomeCopilotProvider(githubService, context);
+	const downloadTracker = new DownloadTracker(context);
+	const treeProvider = new AwesomeCopilotProvider(githubService, context, downloadTracker);
 	const previewProvider = new CopilotPreviewProvider();
 
 	// Initialize repository sources from settings
@@ -520,7 +522,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage('No file selected for download');
 			return;
 		}
-		await downloadCopilotItem(treeItem.copilotItem, githubService);
+		await downloadCopilotItem(treeItem.copilotItem, githubService, downloadTracker);
 	});
 
 	// Register preview command
@@ -763,7 +765,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 }
 
-async function downloadCopilotItem(item: CopilotItem, githubService: GitHubService): Promise<void> {
+async function downloadCopilotItem(item: CopilotItem, githubService: GitHubService, downloadTracker: DownloadTracker): Promise<void> {
 	try {
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 		if (!workspaceFolder) {
@@ -839,6 +841,9 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 				}
 			}
 
+			// Record the download
+			await downloadTracker.recordDownload(item);
+
 			// Show success message
 			const openFolder = await vscode.window.showInformationMessage(
 				`Successfully downloaded skill folder ${folderName}`,
@@ -896,6 +901,9 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 			// Fetch content and save file
 			const content = await githubService.getFileContent(item.file.download_url);
 			fs.writeFileSync(targetFilePath, content, 'utf8');
+
+			// Record the download with content for hash calculation
+			await downloadTracker.recordDownload(item, content);
 
 			// Show success message and offer to open file
 			const openFile = await vscode.window.showInformationMessage(
