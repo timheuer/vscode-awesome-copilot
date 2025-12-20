@@ -56,6 +56,7 @@ export class AwesomeCopilotTreeItem extends vscode.TreeItem {
                 case CopilotCategory.Skills:
                     this.iconPath = new vscode.ThemeIcon('tools');
                     break;
+                }
             }
         } else if (itemType === 'category') {
             this.contextValue = 'copilotCategory';
