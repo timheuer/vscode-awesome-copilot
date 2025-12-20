@@ -396,10 +396,10 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     updatesByCategory[categoryLabel].push(item.name);
                 }
 
-                // Build notification message
+                // Build notification message (plain text, no markdown)
                 let message = `📦 Updates available for ${itemsWithUpdates.length} downloaded item(s):\n\n`;
                 for (const [category, items] of Object.entries(updatesByCategory)) {
-                    message += `**${category}:**\n`;
+                    message += `${category}:\n`;
                     for (const itemName of items) {
                         message += `  • ${itemName}\n`;
                     }

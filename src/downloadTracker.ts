@@ -34,7 +34,7 @@ export class DownloadTracker {
                 sha = crypto.createHash('sha256').update(content).digest('hex');
             } else {
                 // Use the file's SHA from GitHub metadata if available
-                sha = (item.file as any).sha || '';
+                sha = item.file.sha || '';
             }
 
             const metadata: DownloadMetadata = {
@@ -95,7 +95,7 @@ export class DownloadTracker {
         }
 
         // Compare SHA if available from GitHub metadata
-        const remoteSha = (item.file as any).sha;
+        const remoteSha = item.file.sha;
         if (remoteSha && metadata.sha && remoteSha !== metadata.sha) {
             return true;
         }
