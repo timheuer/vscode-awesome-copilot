@@ -36,7 +36,8 @@ export enum CopilotCategory {
     Collections = 'collections',
     Instructions = 'instructions',
     Prompts = 'prompts',
-    Agents = 'agents'
+    Agents = 'agents',
+    Skills = 'skills'
 }
 
 
@@ -52,12 +53,14 @@ export const CATEGORY_LABELS: Record<CopilotCategory, string> = {
     [CopilotCategory.Collections]: 'Collections',
     [CopilotCategory.Instructions]: 'Instructions',
     [CopilotCategory.Prompts]: 'Prompts',
-    [CopilotCategory.Agents]: 'Agents'
+    [CopilotCategory.Agents]: 'Agents',
+    [CopilotCategory.Skills]: 'Skills'
 };
 
 export const FOLDER_PATHS: Record<CopilotCategory, string> = {
     [CopilotCategory.Collections]: '.github/collections',
     [CopilotCategory.Instructions]: '.github/instructions',
     [CopilotCategory.Prompts]: '.github/prompts',
-    [CopilotCategory.Agents]: '.github/agents'
+    [CopilotCategory.Agents]: '.github/agents',
+    [CopilotCategory.Skills]: '.github/skills'
 };
