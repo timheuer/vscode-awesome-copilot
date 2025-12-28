@@ -433,7 +433,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                             });
                         }
                     }
-                    
+
                     await vscode.window.showQuickPick(items, {
                         title: '📦 Available Updates',
                         placeHolder: 'Items with updates available'
