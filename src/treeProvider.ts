@@ -396,23 +396,51 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     updatesByCategory[categoryLabel].push(item.name);
                 }
 
-                // Build notification message (plain text, no markdown)
-                let message = `📦 Updates available for ${itemsWithUpdates.length} downloaded item(s):\n\n`;
+                // Build detailed message for logging
+                let detailedMessage = `Updates available for ${itemsWithUpdates.length} downloaded item(s):\n\n`;
                 for (const [category, items] of Object.entries(updatesByCategory)) {
-                    message += `${category}:\n`;
+                    detailedMessage += `${category}:\n`;
                     for (const itemName of items) {
-                        message += `  • ${itemName}\n`;
+                        detailedMessage += `  • ${itemName}\n`;
                     }
+                    detailedMessage += '\n';
                 }
-                message += `\nDownload again to get the latest version.`;
 
-                // Show notification
-                vscode.window.showInformationMessage(
-                    message,
-                    { modal: false }
+                // Build summary for notification (single line with categories)
+                const categoryList = Object.keys(updatesByCategory).join(', ');
+                const shortMessage = `📦 Updates available for ${itemsWithUpdates.length} downloaded item(s) in: ${categoryList}`;
+
+                // Show notification with action button
+                const choice = await vscode.window.showInformationMessage(
+                    shortMessage,
+                    'Show Details',
+                    'Dismiss'
                 );
 
-                getLogger().info(`Found ${itemsWithUpdates.length} items with updates available`);
+                if (choice === 'Show Details') {
+                    // Show detailed list in a quick pick
+                    const items: vscode.QuickPickItem[] = [];
+                    for (const [category, categoryItems] of Object.entries(updatesByCategory)) {
+                        items.push({
+                            label: `$(folder) ${category}`,
+                            kind: vscode.QuickPickItemKind.Separator
+                        });
+                        for (const itemName of categoryItems) {
+                            items.push({
+                                label: `$(file) ${itemName}`,
+                                description: 'Update available',
+                                detail: 'Download again to get the latest version'
+                            });
+                        }
+                    }
+                    
+                    await vscode.window.showQuickPick(items, {
+                        title: '📦 Available Updates',
+                        placeHolder: 'Items with updates available'
+                    });
+                }
+
+                getLogger().info(detailedMessage);
             }
         } catch (error) {
             getLogger().error('Error checking for updates:', error);
