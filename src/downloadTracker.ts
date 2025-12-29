@@ -50,10 +50,10 @@ export class DownloadTracker {
                 downloadUrl: item.file.download_url
             };
 
-            // Store or update the download metadata
+            // Store or update the download metadata (per workspace)
             downloads[item.id] = metadata;
             
-            await this.context.globalState.update(DOWNLOADS_STORAGE_KEY, downloads);
+            await this.context.workspaceState.update(DOWNLOADS_STORAGE_KEY, downloads);
             
             getLogger().debug('Recorded download:', { itemId: item.id, itemName: item.name });
         } catch (error) {
@@ -62,10 +62,10 @@ export class DownloadTracker {
     }
 
     /**
-     * Get all recorded downloads
+     * Get all recorded downloads (per workspace)
      */
     getDownloads(): Record<string, DownloadMetadata> {
-        return this.context.globalState.get<Record<string, DownloadMetadata>>(DOWNLOADS_STORAGE_KEY) || {};
+        return this.context.workspaceState.get<Record<string, DownloadMetadata>>(DOWNLOADS_STORAGE_KEY) || {};
     }
 
     /**
@@ -130,7 +130,7 @@ export class DownloadTracker {
         try {
             const downloads = this.getDownloads();
             delete downloads[itemId];
-            await this.context.globalState.update(DOWNLOADS_STORAGE_KEY, downloads);
+            await this.context.workspaceState.update(DOWNLOADS_STORAGE_KEY, downloads);
             getLogger().debug('Removed download record:', itemId);
         } catch (error) {
             getLogger().error('Failed to remove download record:', error);
@@ -138,11 +138,11 @@ export class DownloadTracker {
     }
 
     /**
-     * Clear all download records
+     * Clear all download records (per workspace)
      */
     async clearAllDownloads(): Promise<void> {
         try {
-            await this.context.globalState.update(DOWNLOADS_STORAGE_KEY, {});
+            await this.context.workspaceState.update(DOWNLOADS_STORAGE_KEY, {});
             getLogger().info('Cleared all download records');
         } catch (error) {
             getLogger().error('Failed to clear download records:', error);
