@@ -480,7 +480,6 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 );
 
                 if (!action || action.value === 'cancel') {
-                    continueLoop = false;
                     return;
                 }
 
