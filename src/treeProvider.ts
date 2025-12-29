@@ -387,21 +387,21 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
 
             if (itemsWithUpdates.length > 0) {
                 // Group by category for better readability
-                const updatesByCategory: Record<string, string[]> = {};
+                const updatesByCategory: Record<string, CopilotItem[]> = {};
                 for (const item of itemsWithUpdates) {
                     const categoryLabel = CATEGORY_LABELS[item.category];
                     if (!updatesByCategory[categoryLabel]) {
                         updatesByCategory[categoryLabel] = [];
                     }
-                    updatesByCategory[categoryLabel].push(item.name);
+                    updatesByCategory[categoryLabel].push(item);
                 }
 
                 // Build detailed message for logging
                 let detailedMessage = `Updates available for ${itemsWithUpdates.length} downloaded item(s):\n\n`;
                 for (const [category, items] of Object.entries(updatesByCategory)) {
                     detailedMessage += `${category}:\n`;
-                    for (const itemName of items) {
-                        detailedMessage += `  • ${itemName}\n`;
+                    for (const item of items) {
+                        detailedMessage += `  • ${item.name}\n`;
                     }
                     detailedMessage += '\n';
                 }
@@ -418,32 +418,58 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 );
 
                 if (choice === 'Show Details') {
-                    // Show detailed list in a quick pick
-                    const items: vscode.QuickPickItem[] = [];
+                    // Show detailed list in a quick pick with actions
+                    const quickPickItems: Array<vscode.QuickPickItem & { item?: CopilotItem }> = [];
                     for (const [category, categoryItems] of Object.entries(updatesByCategory)) {
-                        items.push({
-                            label: `$(folder) ${category}`,
+                        quickPickItems.push({
+                            label: category,
                             kind: vscode.QuickPickItemKind.Separator
                         });
-                        for (const itemName of categoryItems) {
-                            items.push({
-                                label: `$(file) ${itemName}`,
+                        for (const item of categoryItems) {
+                            quickPickItems.push({
+                                label: item.name,
                                 description: 'Update available',
-                                detail: 'Download again to get the latest version'
+                                detail: 'Click to download the latest version',
+                                item: item
                             });
                         }
                     }
 
-                    await vscode.window.showQuickPick(items, {
+                    const selected = await vscode.window.showQuickPick(quickPickItems, {
                         title: '📦 Available Updates',
-                        placeHolder: 'Items with updates available'
+                        placeHolder: 'Select an item to download the latest version'
                     });
+
+                    // If user selected an item, trigger download
+                    if (selected && selected.item) {
+                        await this.handleUpdateDownload(selected.item);
+                    }
                 }
 
                 getLogger().info(detailedMessage);
             }
         } catch (error) {
             getLogger().error('Error checking for updates:', error);
+        }
+    }
+
+    private async handleUpdateDownload(item: CopilotItem): Promise<void> {
+        try {
+            // Create a tree item wrapper to trigger the download command
+            const treeItem = new AwesomeCopilotTreeItem(
+                item.name,
+                vscode.TreeItemCollapsibleState.None,
+                'file',
+                item,
+                item.category,
+                item.repo
+            );
+
+            // Execute the download command
+            await vscode.commands.executeCommand('awesome-copilot.downloadItem', treeItem);
+        } catch (error) {
+            getLogger().error('Error downloading update:', error);
+            vscode.window.showErrorMessage(`Failed to download ${item.name}: ${error}`);
         }
     }
 
