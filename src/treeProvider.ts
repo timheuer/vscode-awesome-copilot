@@ -463,38 +463,45 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
 
     private async handleUpdateDownload(item: CopilotItem): Promise<void> {
         try {
-            // Ask user what they want to do
-            const action = await vscode.window.showQuickPick(
-                [
-                    { label: 'Download Update', description: 'Download and replace the local version', value: 'download' },
-                    { label: 'Show Diff', description: 'Compare local version with the update', value: 'diff' },
-                    { label: 'Cancel', description: '', value: 'cancel' }
-                ],
-                {
-                    title: `Update Available: ${item.name}`,
-                    placeHolder: 'Choose an action'
-                }
-            );
-
-            if (!action || action.value === 'cancel') {
-                return;
-            }
-
-            if (action.value === 'download') {
-                // Create a tree item wrapper to trigger the download command
-                const treeItem = new AwesomeCopilotTreeItem(
-                    item.name,
-                    vscode.TreeItemCollapsibleState.None,
-                    'file',
-                    item,
-                    item.category,
-                    item.repo
+            // Loop to allow returning to menu after viewing diff
+            let continueLoop = true;
+            while (continueLoop) {
+                // Ask user what they want to do
+                const action = await vscode.window.showQuickPick(
+                    [
+                        { label: 'Download Update', description: 'Download and replace the local version', value: 'download' },
+                        { label: 'Show Diff', description: 'Compare local version with the update', value: 'diff' },
+                        { label: 'Cancel', description: '', value: 'cancel' }
+                    ],
+                    {
+                        title: `Update Available: ${item.name}`,
+                        placeHolder: 'Choose an action'
+                    }
                 );
 
-                // Execute the download command
-                await vscode.commands.executeCommand('awesome-copilot.downloadItem', treeItem);
-            } else if (action.value === 'diff') {
-                await this.showDiff(item);
+                if (!action || action.value === 'cancel') {
+                    continueLoop = false;
+                    return;
+                }
+
+                if (action.value === 'download') {
+                    // Create a tree item wrapper to trigger the download command
+                    const treeItem = new AwesomeCopilotTreeItem(
+                        item.name,
+                        vscode.TreeItemCollapsibleState.None,
+                        'file',
+                        item,
+                        item.category,
+                        item.repo
+                    );
+
+                    // Execute the download command
+                    await vscode.commands.executeCommand('awesome-copilot.downloadItem', treeItem);
+                    continueLoop = false; // Exit after download
+                } else if (action.value === 'diff') {
+                    await this.showDiff(item);
+                    // After showing diff, loop back to menu (continueLoop stays true)
+                }
             }
         } catch (error) {
             getLogger().error('Error handling update:', error);

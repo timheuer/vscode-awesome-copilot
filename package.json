@@ -45,10 +45,7 @@
         {
           "id": "awesomeCopilot",
           "title": "Awesome Copilot",
-          "icon": {
-            "light": "resources/awesome-copilot-light.svg",
-            "dark": "resources/awesome-copilot-dark.svg"
-          }
+          "icon": "resources/awesome-copilot-dark.svg"
         }
       ]
     },
