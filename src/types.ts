@@ -10,6 +10,7 @@ export interface GitHubFile {
     download_url: string;
     size: number;
     type: 'file' | 'dir';
+    sha?: string; // Git SHA hash from GitHub API
     repo?: RepoSource; // Optional: which repo this file comes from
     displayName?: string; // For handling duplicate filenames across repos
 }
