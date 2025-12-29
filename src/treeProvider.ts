@@ -1,9 +1,17 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { GitHubService } from './githubService';
 import { CopilotItem, CopilotCategory, CATEGORY_LABELS, FOLDER_PATHS, GitHubFile, RepoSource } from './types';
 import { RepoStorage } from './repoStorage';
 import { getLogger } from './logger';
 import { DownloadTracker } from './downloadTracker';
+
+// Text document provider for remote content in diff view
+class RemoteContentProvider implements vscode.TextDocumentContentProvider {
+    provideTextDocumentContent(uri: vscode.Uri): string {
+        return Buffer.from(uri.query, 'base64').toString('utf8');
+    }
+}
 
 export class AwesomeCopilotTreeItem extends vscode.TreeItem {
     public readonly copilotItem?: CopilotItem;
@@ -509,7 +517,6 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
             );
 
             // Check if local file exists
-            const fs = require('fs');
             if (!fs.existsSync(localFilePath.fsPath)) {
                 vscode.window.showWarningMessage(`Local file not found: ${item.name}. It may have been moved or deleted.`);
                 return;
@@ -523,14 +530,11 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 query: Buffer.from(remoteContent).toString('base64')
             });
 
-            // Register a temporary text document provider for the remote content
-            const provider = new class implements vscode.TextDocumentContentProvider {
-                provideTextDocumentContent(uri: vscode.Uri): string {
-                    return Buffer.from(uri.query, 'base64').toString('utf8');
-                }
-            };
-
-            const providerDisposable = vscode.workspace.registerTextDocumentContentProvider('copilot-remote', provider);
+            // Register a text document provider for the remote content
+            const providerDisposable = vscode.workspace.registerTextDocumentContentProvider(
+                'copilot-remote',
+                new RemoteContentProvider()
+            );
 
             try {
                 // Open diff view
@@ -542,8 +546,8 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                     { preview: true }
                 );
             } finally {
-                // Clean up the provider after a delay to ensure the diff is shown
-                setTimeout(() => providerDisposable.dispose(), 1000);
+                // Clean up the provider after giving time for the diff to load
+                setTimeout(() => providerDisposable.dispose(), 5000);
             }
         } catch (error) {
             getLogger().error('Error showing diff:', error);
