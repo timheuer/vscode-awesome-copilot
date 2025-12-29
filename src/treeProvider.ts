@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { GitHubService } from './githubService';
-import { CopilotItem, CopilotCategory, CATEGORY_LABELS, GitHubFile, RepoSource } from './types';
+import { CopilotItem, CopilotCategory, CATEGORY_LABELS, FOLDER_PATHS, GitHubFile, RepoSource } from './types';
 import { RepoStorage } from './repoStorage';
 import { getLogger } from './logger';
 import { DownloadTracker } from './downloadTracker';
@@ -455,21 +455,99 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
 
     private async handleUpdateDownload(item: CopilotItem): Promise<void> {
         try {
-            // Create a tree item wrapper to trigger the download command
-            const treeItem = new AwesomeCopilotTreeItem(
-                item.name,
-                vscode.TreeItemCollapsibleState.None,
-                'file',
-                item,
-                item.category,
-                item.repo
+            // Ask user what they want to do
+            const action = await vscode.window.showQuickPick(
+                [
+                    { label: 'Download Update', description: 'Download and replace the local version', value: 'download' },
+                    { label: 'Show Diff', description: 'Compare local version with the update', value: 'diff' },
+                    { label: 'Cancel', description: '', value: 'cancel' }
+                ],
+                {
+                    title: `Update Available: ${item.name}`,
+                    placeHolder: 'Choose an action'
+                }
             );
 
-            // Execute the download command
-            await vscode.commands.executeCommand('awesome-copilot.downloadItem', treeItem);
+            if (!action || action.value === 'cancel') {
+                return;
+            }
+
+            if (action.value === 'download') {
+                // Create a tree item wrapper to trigger the download command
+                const treeItem = new AwesomeCopilotTreeItem(
+                    item.name,
+                    vscode.TreeItemCollapsibleState.None,
+                    'file',
+                    item,
+                    item.category,
+                    item.repo
+                );
+
+                // Execute the download command
+                await vscode.commands.executeCommand('awesome-copilot.downloadItem', treeItem);
+            } else if (action.value === 'diff') {
+                await this.showDiff(item);
+            }
         } catch (error) {
-            getLogger().error('Error downloading update:', error);
-            vscode.window.showErrorMessage(`Failed to download ${item.name}: ${error}`);
+            getLogger().error('Error handling update:', error);
+            vscode.window.showErrorMessage(`Failed to handle update for ${item.name}: ${error}`);
+        }
+    }
+
+    private async showDiff(item: CopilotItem): Promise<void> {
+        try {
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                vscode.window.showErrorMessage('No workspace folder open');
+                return;
+            }
+
+            // Get the local file path
+            const targetFolder = FOLDER_PATHS[item.category];
+            const localFilePath = vscode.Uri.file(
+                `${workspaceFolder.uri.fsPath}/${targetFolder}/${item.name}`
+            );
+
+            // Check if local file exists
+            const fs = require('fs');
+            if (!fs.existsSync(localFilePath.fsPath)) {
+                vscode.window.showWarningMessage(`Local file not found: ${item.name}. It may have been moved or deleted.`);
+                return;
+            }
+
+            // Fetch the remote content
+            const remoteContent = await this.githubService.getFileContent(item.file.download_url);
+
+            // Create a virtual document for the remote content
+            const remoteUri = vscode.Uri.parse(`copilot-remote:${item.name}`).with({
+                query: Buffer.from(remoteContent).toString('base64')
+            });
+
+            // Register a temporary text document provider for the remote content
+            const provider = new class implements vscode.TextDocumentContentProvider {
+                provideTextDocumentContent(uri: vscode.Uri): string {
+                    return Buffer.from(uri.query, 'base64').toString('utf8');
+                }
+            };
+
+            const providerDisposable = vscode.workspace.registerTextDocumentContentProvider('copilot-remote', provider);
+
+            try {
+                // Open diff view
+                await vscode.commands.executeCommand(
+                    'vscode.diff',
+                    localFilePath,
+                    remoteUri,
+                    `${item.name} (Local ↔ Remote Update)`,
+                    { preview: true }
+                );
+            } finally {
+                // Clean up the provider after a delay to ensure the diff is shown
+                setTimeout(() => providerDisposable.dispose(), 1000);
+            }
+        } catch (error) {
+            getLogger().error('Error showing diff:', error);
+            vscode.window.showErrorMessage(`Failed to show diff for ${item.name}: ${error}`);
         }
     }
 
