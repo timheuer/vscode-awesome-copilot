@@ -2,7 +2,8 @@
 import axios from 'axios';
 import * as vscode from 'vscode';
 import * as https from 'https';
-import { GitHubFile, CopilotCategory, CacheEntry, RepoSource } from './types';
+import * as yaml from 'js-yaml';
+import { GitHubFile, CopilotCategory, CacheEntry, RepoSource, CollectionMetadata } from './types';
 import { RepoStorage } from './repoStorage';
 import { StatusBarManager } from './statusBarManager';
 import { getLogger } from './logger';
@@ -291,10 +292,14 @@ export class GitHubService {
                 }
 
                 // For Skills category, show directories (folders); for other categories, show files
+                // For Collections category, show only .yml files
                 const files = (response.data as GitHubFile[])
                     .filter((file: GitHubFile) => {
                         if (category === CopilotCategory.Skills) {
                             return file.type === 'dir';
+                        }
+                        if (category === CopilotCategory.Collections) {
+                            return file.type === 'file' && file.name.endsWith('.yml');
                         }
                         return file.type === 'file';
                     })
@@ -404,10 +409,14 @@ export class GitHubService {
             }
 
             // For Skills category, show directories (folders); for other categories, show files
+            // For Collections category, show only .yml files
             const files = (response.data as GitHubFile[])
                 .filter((file: GitHubFile) => {
                     if (category === CopilotCategory.Skills) {
                         return file.type === 'dir';
+                    }
+                    if (category === CopilotCategory.Collections) {
+                        return file.type === 'file' && file.name.endsWith('.yml');
                     }
                     return file.type === 'file';
                 })
@@ -489,6 +498,23 @@ export class GitHubService {
         }
     }
 
+    // Parse collection YAML file and return metadata
+    async parseCollectionYaml(downloadUrl: string): Promise<CollectionMetadata> {
+        try {
+            const content = await this.getFileContent(downloadUrl);
+            const metadata = yaml.load(content) as CollectionMetadata;
+            
+            if (!metadata || !metadata.items || !Array.isArray(metadata.items)) {
+                throw new Error('Invalid collection YAML format: missing or invalid items array');
+            }
+            
+            return metadata;
+        } catch (error) {
+            getLogger().error('Failed to parse collection YAML:', error);
+            throw new Error(`Failed to parse collection YAML: ${error}`);
+        }
+    }
+
     // Get contents of a directory recursively (for Skills folders)
     async getDirectoryContents(repo: RepoSource, path: string): Promise<GitHubFile[]> {
         try {
@@ -565,6 +591,55 @@ export class GitHubService {
             return `${baseUrl}/api/v3/repos/${repo.owner}/${repo.repo}/contents/${path}`;
         } else {
             return `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${path}`;
+        }
+    }
+
+    // Get file metadata from GitHub API (includes download_url)
+    async getFileMetadata(repo: RepoSource, filePath: string): Promise<GitHubFile> {
+        try {
+            const apiUrl = this.buildApiUrlForPath(repo, filePath);
+            const isEnterprise = !!repo.baseUrl;
+            const headers = await this.createRequestHeaders(isEnterprise);
+
+            const axiosConfig: any = {
+                timeout: 10000,
+                headers: headers,
+                withCredentials: isEnterprise
+            };
+
+            if (isEnterprise) {
+                const httpsAgent = this.createHttpsAgent(apiUrl);
+                if (httpsAgent) {
+                    axiosConfig.httpsAgent = httpsAgent;
+                    axiosConfig.agent = httpsAgent;
+                }
+            }
+
+            let response;
+            const config = vscode.workspace.getConfiguration('awesome-copilot');
+            const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
+
+            if (isEnterprise && allowInsecureEnterpriseCerts) {
+                const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+                try {
+                    response = await axios.get<GitHubFile>(apiUrl, axiosConfig);
+                } finally {
+                    if (originalRejectUnauthorized === undefined) {
+                        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+                    } else {
+                        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
+                    }
+                }
+            } else {
+                response = await axios.get<GitHubFile>(apiUrl, axiosConfig);
+            }
+
+            return { ...response.data, repo };
+        } catch (error) {
+            getLogger().error(`Failed to get file metadata for ${filePath}:`, error);
+            throw new Error(`Failed to get file metadata: ${error}`);
         }
     }
 

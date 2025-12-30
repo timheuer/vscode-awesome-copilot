@@ -775,6 +775,137 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 		const targetFolder = FOLDER_PATHS[item.category];
 		const fullTargetPath = path.join(workspaceFolder.uri.fsPath, targetFolder);
 
+		// Collections are YAML files that contain metadata about files to download
+		if (item.category === CopilotCategory.Collections) {
+			// Parse the collection YAML file
+			const metadata = await githubService.parseCollectionYaml(item.file.download_url);
+			
+			// Show confirmation dialog with collection details
+			const proceed = await vscode.window.showInformationMessage(
+				`Download collection "${metadata.name}"?\n\n${metadata.description}\n\nThis will download ${metadata.items.length} item(s).`,
+				{ modal: true },
+				'Download'
+			);
+
+			if (proceed !== 'Download') {
+				return;
+			}
+
+			// Download the collection YAML file itself
+			const collectionYmlPath = path.join(fullTargetPath, item.name);
+			if (!fs.existsSync(fullTargetPath)) {
+				fs.mkdirSync(fullTargetPath, { recursive: true });
+			}
+			const ymlContent = await githubService.getFileContent(item.file.download_url);
+			fs.writeFileSync(collectionYmlPath, ymlContent, 'utf8');
+
+			// Download sibling markdown file if it exists (e.g., file.collection.yml -> file.md)
+			const baseName = item.name.replace('.collection.yml', '');
+			const siblingMdName = `${baseName}.md`;
+			const siblingMdPath = item.file.path.replace(item.name, siblingMdName);
+			
+			try {
+				const siblingUrl = item.file.download_url.replace(item.name, siblingMdName);
+				const siblingContent = await githubService.getFileContent(siblingUrl);
+				const siblingFilePath = path.join(fullTargetPath, siblingMdName);
+				fs.writeFileSync(siblingFilePath, siblingContent, 'utf8');
+			} catch (error) {
+				// Sibling markdown file may not exist, that's ok
+				getLogger().debug(`Sibling markdown file ${siblingMdName} not found (this is normal)`);
+			}
+
+			// Track downloaded files for summary
+			const downloadedFiles: string[] = [];
+			const failedFiles: string[] = [];
+
+			// Download each item in the collection with delay between downloads
+			for (let i = 0; i < metadata.items.length; i++) {
+				const collectionItem = metadata.items[i];
+				
+				try {
+					// Determine the category based on the kind
+					let targetCategory: CopilotCategory;
+					switch (collectionItem.kind) {
+						case 'instruction':
+							targetCategory = CopilotCategory.Instructions;
+							break;
+						case 'prompt':
+							targetCategory = CopilotCategory.Prompts;
+							break;
+						case 'agent':
+							targetCategory = CopilotCategory.Agents;
+							break;
+						case 'skill':
+							targetCategory = CopilotCategory.Skills;
+							break;
+						default:
+							getLogger().warn(`Unknown collection item kind: ${collectionItem.kind}`);
+							continue;
+					}
+
+					// Extract filename from path
+					const fileName = path.basename(collectionItem.path);
+					
+					getLogger().debug(`Fetching file list for ${targetCategory} to find: ${fileName}`);
+
+					// Fetch files from the category using the same method as tree view
+					const categoryFiles = await githubService.getFilesByRepo(item.repo, targetCategory);
+					
+					// Find the matching file by name
+					const matchingFile = categoryFiles.find(file => file.name === fileName);
+					
+					if (!matchingFile) {
+						throw new Error(`File ${fileName} not found in ${targetCategory} category`);
+					}
+
+					getLogger().debug(`Found file, downloading from: ${matchingFile.download_url}`);
+
+					// Build the target folder path
+					const itemTargetFolder = FOLDER_PATHS[targetCategory];
+					const itemFullTargetPath = path.join(workspaceFolder.uri.fsPath, itemTargetFolder);
+
+					// Create directory if it doesn't exist
+					if (!fs.existsSync(itemFullTargetPath)) {
+						fs.mkdirSync(itemFullTargetPath, { recursive: true });
+					}
+
+					const itemTargetFilePath = path.join(itemFullTargetPath, fileName);
+
+					// Download the file using the download_url from GitHub API
+					const fileContent = await githubService.getFileContent(matchingFile.download_url);
+					fs.writeFileSync(itemTargetFilePath, fileContent, 'utf8');
+					downloadedFiles.push(`${collectionItem.kind}: ${fileName}`);
+					
+					// Wait 500ms between downloads to avoid rate limiting
+					if (i < metadata.items.length - 1) {
+						await new Promise(resolve => setTimeout(resolve, 500));
+					}
+				} catch (error) {
+					getLogger().error(`Failed to download ${collectionItem.path}:`, error);
+					failedFiles.push(`${collectionItem.kind}: ${collectionItem.path}`);
+				}
+			}
+
+			// Show summary
+			let summaryMessage = `Collection "${metadata.name}" downloaded!\n\n`;
+			summaryMessage += `✓ ${downloadedFiles.length} file(s) downloaded successfully`;
+			if (failedFiles.length > 0) {
+				summaryMessage += `\n✗ ${failedFiles.length} file(s) failed`;
+			}
+
+			const action = await vscode.window.showInformationMessage(
+				summaryMessage,
+				'Open Collection File'
+			);
+
+			if (action === 'Open Collection File') {
+				const document = await vscode.workspace.openTextDocument(collectionYmlPath);
+				await vscode.window.showTextDocument(document);
+			}
+
+			return;
+		}
+
 		// Skills are folders - handle them differently
 		if (item.category === CopilotCategory.Skills && item.file.type === 'dir') {
 			// Show input box for folder name confirmation

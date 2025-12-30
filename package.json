@@ -133,7 +133,13 @@
         },
         "awesome-copilot.logLevel": {
           "type": "string",
-          "enum": ["error", "warn", "info", "debug", "trace"],
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
           "enumDescriptions": [
             "Only show error messages",
             "Show warnings and errors",
@@ -299,6 +305,7 @@
     "deploy": "vsce publish"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.103.0",
@@ -314,6 +321,7 @@
   },
   "dependencies": {
     "@timheuer/vscode-ext-logger": "^0.1.35",
-    "axios": "^1.11.0"
+    "axios": "^1.11.0",
+    "js-yaml": "^4.1.0"
   }
 }

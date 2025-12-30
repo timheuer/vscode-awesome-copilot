@@ -36,9 +36,18 @@ export class AwesomeCopilotTreeItem extends vscode.TreeItem {
             } else {
                 this.resourceUri = vscode.Uri.parse(copilotItem.file.download_url);
                 this.description = `${(copilotItem.file.size / 1024).toFixed(1)}KB`;
-                this.tooltip = new vscode.MarkdownString(
-                    `**${copilotItem.name}**\n\nSize: ${(copilotItem.file.size / 1024).toFixed(1)}KB\nRepo: ${copilotItem.repo ? copilotItem.repo.owner + '/' + copilotItem.repo.repo : ''}\n\nClick to preview content`
-                );
+                
+                // Collections are special - they contain multiple files
+                if (copilotItem.category === CopilotCategory.Collections) {
+                    this.tooltip = new vscode.MarkdownString(
+                        `**${copilotItem.name}**\n\nType: Collection (contains multiple files)\nSize: ${(copilotItem.file.size / 1024).toFixed(1)}KB\nRepo: ${copilotItem.repo ? copilotItem.repo.owner + '/' + copilotItem.repo.repo : ''}\n\nClick to preview or download collection`
+                    );
+                } else {
+                    this.tooltip = new vscode.MarkdownString(
+                        `**${copilotItem.name}**\n\nSize: ${(copilotItem.file.size / 1024).toFixed(1)}KB\nRepo: ${copilotItem.repo ? copilotItem.repo.owner + '/' + copilotItem.repo.repo : ''}\n\nClick to preview content`
+                    );
+                }
+                
                 // Set appropriate icon based on category
                 switch (copilotItem.category) {
                     case CopilotCategory.Collections:

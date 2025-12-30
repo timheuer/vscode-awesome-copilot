@@ -64,3 +64,21 @@ export const FOLDER_PATHS: Record<CopilotCategory, string> = {
     [CopilotCategory.Agents]: '.github/agents',
     [CopilotCategory.Skills]: '.github/skills'
 };
+
+// Collection metadata structure from YAML files
+export interface CollectionMetadata {
+    id: string;
+    name: string;
+    description: string;
+    tags?: string[];
+    items: CollectionItem[];
+    display?: {
+        ordering?: 'alpha' | 'custom';
+        show_badge?: boolean;
+    };
+}
+
+export interface CollectionItem {
+    path: string;
+    kind: 'instruction' | 'prompt' | 'agent' | 'skill';
+}
