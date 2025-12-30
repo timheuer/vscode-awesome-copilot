@@ -83,3 +83,8 @@ export interface CollectionItem {
     path: string;
     kind: 'instruction' | 'prompt' | 'agent' | 'skill';
 }
+
+export interface CollectionParseResult {
+    metadata: CollectionMetadata;
+    rawContent: string;
+}

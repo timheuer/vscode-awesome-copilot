@@ -3,7 +3,7 @@ import axios from 'axios';
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as yaml from 'js-yaml';
-import { GitHubFile, CopilotCategory, CacheEntry, RepoSource, CollectionMetadata } from './types';
+import { GitHubFile, CopilotCategory, CacheEntry, RepoSource, CollectionMetadata, CollectionParseResult } from './types';
 import { RepoStorage } from './repoStorage';
 import { StatusBarManager } from './statusBarManager';
 import { getLogger } from './logger';
@@ -498,8 +498,8 @@ export class GitHubService {
         }
     }
 
-    // Parse collection YAML file and return metadata
-    async parseCollectionYaml(downloadUrl: string): Promise<CollectionMetadata> {
+    // Parse collection YAML file and return metadata with raw content
+    async parseCollectionYaml(downloadUrl: string): Promise<CollectionParseResult> {
         try {
             const content = await this.getFileContent(downloadUrl);
             const metadata = yaml.load(content) as CollectionMetadata | null;
@@ -541,7 +541,7 @@ export class GitHubService {
                     throw new Error(`Invalid collection YAML format: item at index ${index} is missing or has an invalid "kind" field`);
                 }
             });
-            return metadata as CollectionMetadata;
+            return { metadata: metadata as CollectionMetadata, rawContent: content };
         } catch (error) {
             getLogger().error('Failed to parse collection YAML:', error);
             const errorMessage = error instanceof Error ? error.message : String(error);

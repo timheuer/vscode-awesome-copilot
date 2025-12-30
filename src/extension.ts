@@ -779,8 +779,8 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 
 		// Collections are YAML files that contain metadata about files to download
 		if (item.category === CopilotCategory.Collections) {
-			// Parse the collection YAML file
-			const metadata = await githubService.parseCollectionYaml(item.file.download_url);
+			// Parse the collection YAML file and get raw content
+			const { metadata, rawContent } = await githubService.parseCollectionYaml(item.file.download_url);
 			
 			// Show confirmation dialog with collection details
 			const proceed = await vscode.window.showInformationMessage(
@@ -793,13 +793,12 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 				return;
 			}
 
-			// Download the collection YAML file itself
+			// Download the collection YAML file itself using the already-fetched content
 			const collectionYmlPath = path.join(fullTargetPath, item.name);
 			if (!fs.existsSync(fullTargetPath)) {
 				fs.mkdirSync(fullTargetPath, { recursive: true });
 			}
-			const ymlContent = await githubService.getFileContent(item.file.download_url);
-			fs.writeFileSync(collectionYmlPath, ymlContent, 'utf8');
+			fs.writeFileSync(collectionYmlPath, rawContent, 'utf8');
 
 			// Download sibling markdown file if it exists (e.g., file.collection.yml -> file.md)
 			let baseName = item.name;
@@ -857,16 +856,14 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 
 					const isSkill = collectionItem.kind === 'skill';
 
-					// Extract filename from path for non-skill items
-					const fileName = isSkill ? undefined : path.basename(collectionItem.path);
-					
-					if (isSkill) {
-						getLogger().debug(`Fetching file list for ${targetCategory} to find skill at path: ${collectionItem.path}`);
-					} else {
-						getLogger().debug(`Fetching file list for ${targetCategory} to find file: ${fileName}`);
-					}
-
-					// Fetch files from the category using the same method as tree view
+				// Extract filename from path
+				const fileName = path.basename(collectionItem.path);
+				
+				if (isSkill) {
+					getLogger().debug(`Fetching file list for ${targetCategory} to find skill at path: ${collectionItem.path}`);
+				} else {
+					getLogger().debug(`Fetching file list for ${targetCategory} to find file: ${fileName}`);
+				}
 					const categoryFiles = await githubService.getFilesByRepo(item.repo, targetCategory);
 					
 					// Find the matching entry

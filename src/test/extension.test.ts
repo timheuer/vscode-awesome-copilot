@@ -84,17 +84,18 @@ display:
 
 			const result = await service.parseCollectionYaml('http://test-url.com/collection.yml');
 
-			assert.strictEqual(result.id, 'test-collection');
-			assert.strictEqual(result.name, 'Test Collection');
-			assert.strictEqual(result.description, 'A test collection for validation');
-			assert.ok(Array.isArray(result.items));
-			assert.strictEqual(result.items.length, 2);
-			assert.strictEqual(result.items[0].path, '.github/instructions/test.md');
-			assert.strictEqual(result.items[0].kind, 'instruction');
-		});
+		assert.strictEqual(result.metadata.id, 'test-collection');
+		assert.strictEqual(result.metadata.name, 'Test Collection');
+		assert.strictEqual(result.metadata.description, 'A test collection for validation');
+		assert.ok(Array.isArray(result.metadata.items));
+		assert.strictEqual(result.metadata.items.length, 2);
+		assert.strictEqual(result.metadata.items[0].path, '.github/instructions/test.md');
+		assert.strictEqual(result.metadata.items[0].kind, 'instruction');
+		assert.strictEqual(result.rawContent, validYaml);
+	});
 
-		test('should reject YAML missing id field', async () => {
-			const invalidYaml = `name: Test Collection
+	test('should reject YAML missing id field', async () => {
+		const invalidYaml = `name: Test Collection
 description: A test collection
 items:
   - path: test.md
@@ -255,9 +256,10 @@ items: []`;
 
 			const result = await service.parseCollectionYaml('http://test-url.com/collection.yml');
 
-			assert.strictEqual(result.id, 'test-collection');
-			assert.ok(Array.isArray(result.items));
-			assert.strictEqual(result.items.length, 0);
+			assert.strictEqual(result.metadata.id, 'test-collection');
+			assert.ok(Array.isArray(result.metadata.items));
+			assert.strictEqual(result.metadata.items.length, 0);
+			assert.strictEqual(result.rawContent, validYaml);
 		});
 
 		test('should reject completely invalid YAML', async () => {
@@ -308,12 +310,13 @@ display:
 
 			const result = await service.parseCollectionYaml('http://test-url.com/collection.yml');
 
-			assert.ok(result.tags);
-			assert.strictEqual(result.tags.length, 3);
-			assert.strictEqual(result.tags[0], 'testing');
-			assert.ok(result.display);
-			assert.strictEqual(result.display.ordering, 'custom');
-			assert.strictEqual(result.display.show_badge, false);
+			assert.ok(result.metadata.tags);
+			assert.strictEqual(result.metadata.tags.length, 3);
+			assert.strictEqual(result.metadata.tags[0], 'testing');
+			assert.ok(result.metadata.display);
+			assert.strictEqual(result.metadata.display.ordering, 'custom');
+			assert.strictEqual(result.metadata.display.show_badge, false);
+			assert.strictEqual(result.rawContent, validYaml);
 		});
 
 		test('should handle multiple items with different kinds', async () => {
@@ -334,11 +337,12 @@ items:
 
 			const result = await service.parseCollectionYaml('http://test-url.com/collection.yml');
 
-			assert.strictEqual(result.items.length, 4);
-			assert.strictEqual(result.items[0].kind, 'instruction');
-			assert.strictEqual(result.items[1].kind, 'prompt');
-			assert.strictEqual(result.items[2].kind, 'agent');
-			assert.strictEqual(result.items[3].kind, 'skill');
+			assert.strictEqual(result.metadata.items.length, 4);
+			assert.strictEqual(result.metadata.items[0].kind, 'instruction');
+			assert.strictEqual(result.metadata.items[1].kind, 'prompt');
+			assert.strictEqual(result.metadata.items[2].kind, 'agent');
+			assert.strictEqual(result.metadata.items[3].kind, 'skill');
+			assert.strictEqual(result.rawContent, validYaml);
 		});
 	});
 });
