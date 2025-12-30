@@ -540,6 +540,14 @@ export class GitHubService {
                 if (typeof kind !== 'string' || !kind.trim()) {
                     throw new Error(`Invalid collection YAML format: item at index ${index} is missing or has an invalid "kind" field`);
                 }
+
+                const allowedKinds = ['instruction', 'prompt', 'agent', 'skill'];
+                if (!allowedKinds.includes(kind)) {
+                    throw new Error(
+                        `Invalid collection YAML format: item at index ${index} has unsupported "kind" value "${kind}". ` +
+                        `Allowed kinds are: ${allowedKinds.join(', ')}`
+                    );
+                }
             });
             return { metadata: metadata as CollectionMetadata, rawContent: content };
         } catch (error) {

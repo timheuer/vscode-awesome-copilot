@@ -856,14 +856,14 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 
 					const isSkill = collectionItem.kind === 'skill';
 
-				// Extract filename from path
-				const fileName = path.basename(collectionItem.path);
-				
-				if (isSkill) {
-					getLogger().debug(`Fetching file list for ${targetCategory} to find skill at path: ${collectionItem.path}`);
-				} else {
-					getLogger().debug(`Fetching file list for ${targetCategory} to find file: ${fileName}`);
-				}
+					// Extract filename from path
+					const fileName = path.basename(collectionItem.path);
+					
+					if (isSkill) {
+						getLogger().debug(`Fetching file list for ${targetCategory} to find skill at path: ${collectionItem.path}`);
+					} else {
+						getLogger().debug(`Fetching file list for ${targetCategory} to find file: ${fileName}`);
+					}
 					const categoryFiles = await githubService.getFilesByRepo(item.repo, targetCategory);
 					
 					// Find the matching entry
