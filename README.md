@@ -1,12 +1,17 @@
 # Awesome GitHub Copilot Browser
 
-[![VS Marketplace Badge](https://img.shields.io/visual-studio-marketplace/v/timheuer.vscode-awesome-copilot?label=VS%20Code%20Marketplace&color=brightgreen&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=TimHeuer.vscode-awesome-copilot)
-
 A VS Code extension that allows you to browse, preview, and download GitHub Copilot customizations from the [awesome-copilot repository](https://github.com/github/awesome-copilot).
+
+[![VS Marketplace Badge](https://img.shields.io/visual-studio-marketplace/v/timheuer.awesome-copilot?label=VS%20Code%20Marketplace&color=brightgreen&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Rating](https://img.shields.io/visual-studio-marketplace/r/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Last Updated](https://img.shields.io/visual-studio-marketplace/last-updated/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Release Date](https://img.shields.io/visual-studio-marketplace/release-date/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot)
+
+## Install in VS Code
+
+[![Install in VS Code](https://img.shields.io/badge/Install%20in-VS%20Code-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](vscode:extension/timheuer.awesome-copilot)
+[![Install in VS Code Insiders](https://img.shields.io/badge/Install%20in-VS%20Code%20Insiders-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](vscode-insiders:extension/timheuer.awesome-copilot)
 
 ## Features
 
-- **🔍 Browse**: Explore chat modes, instructions, prompts, and agents in a convenient tree view
+- **🔍 Browse**: Explore chat modes, instructions, prompts, agents, and skills in a convenient tree view
 - **📖 Preview**: View file content before downloading
 - **⬇️ Download**: Save files to appropriate `.github/` folders in your workspace
 - **🔃 Refresh**: Update repository data with manual refresh
@@ -15,7 +20,7 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 ## How to Use
 
 1. **Open the Extension**: Click the new Activity Bar icon (checkmark document) titled **Awesome Copilot**. (Previously this view appeared under Explorer; it now has its own dedicated container with a proper icon.)
-2. **Browse Categories**: Expand Chat Modes, Instructions, Prompts, or Agents sections
+2. **Browse Categories**: Expand Chat Modes, Instructions, Prompts, Agents, or Skills sections
 3. **Preview Content**: Click the preview icon on any file to see its content
 4. **Download Files**: Click the download icon to save files to your workspace
 5. **Refresh Data**: Click the refresh icon in the view title to update repository data
@@ -24,12 +29,15 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 
 Downloaded files are organized in your workspace as follows:
 
-- **Chat Modes** → `.github/chatmodes/`
-- **Instructions** → `.github/instructions/`  
-- **Prompts** → `.github/prompts/`
-- **Agents** → `.github/agents/`
+- **Chat Modes** → `.github/chatmodes/` (individual files)
+- **Instructions** → `.github/instructions/` (individual files)
+- **Prompts** → `.github/prompts/` (individual files)
+- **Agents** → `.github/agents/` (individual files)
+- **Skills** → `.github/skills/` (entire folders with SKILL.md and supporting files)
 
 These folders will be created automatically if they don't exist.
+
+**Note:** Skills are unique in that each skill is a complete folder containing a `SKILL.md` file and potentially other supporting files. When you download a skill, the entire folder structure is preserved.
 
 ## Requirements
 

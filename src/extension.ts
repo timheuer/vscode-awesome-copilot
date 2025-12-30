@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { RepoStorage } from './repoStorage';
 import { StatusBarManager } from './statusBarManager';
+import { DownloadTracker } from './downloadTracker';
 import axios from 'axios';
 import * as https from 'https';
 import { createLogger, createLoggerWithConfigMonitoring, Logger } from '@timheuer/vscode-ext-logger';
@@ -165,7 +166,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				// Validate repo structure (check that at least one content folder exists)
 				try {
-					const cats = ['chatmodes', 'instructions', 'prompts', 'agents'];
+					const cats = ['chatmodes', 'instructions', 'prompts', 'agents', 'skills'];
 					const foundFolders: string[] = [];
 					const missingFolders: string[] = [];
 
@@ -473,7 +474,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize services
 	const statusBarManager = new StatusBarManager();
 	const githubService = new GitHubService(statusBarManager);
-	const treeProvider = new AwesomeCopilotProvider(githubService, context);
+	const downloadTracker = new DownloadTracker(context);
+	const treeProvider = new AwesomeCopilotProvider(githubService, context, downloadTracker);
 	const previewProvider = new CopilotPreviewProvider();
 
 	// Initialize repository sources from settings
@@ -532,7 +534,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage('No file selected for download');
 			return;
 		}
-		await downloadCopilotItem(treeItem.copilotItem, githubService);
+		await downloadCopilotItem(treeItem.copilotItem, githubService, downloadTracker);
 	});
 
 	// Register preview command
@@ -776,7 +778,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 }
 
-async function downloadCopilotItem(item: CopilotItem, githubService: GitHubService): Promise<void> {
+async function downloadCopilotItem(item: CopilotItem, githubService: GitHubService, downloadTracker: DownloadTracker): Promise<void> {
 	try {
 		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 		if (!workspaceFolder) {
@@ -788,54 +790,144 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 		const targetFolder = FOLDER_PATHS[item.category];
 		const fullTargetPath = path.join(workspaceFolder.uri.fsPath, targetFolder);
 
-		// Show input box for filename confirmation
-		const filename = await vscode.window.showInputBox({
-			prompt: `Download ${item.name} to ${targetFolder}`,
-			value: item.name,
-			validateInput: (value) => {
-				if (!value || value.trim() === '') {
-					return 'Filename cannot be empty';
+		// Skills are folders - handle them differently
+		if (item.category === CopilotCategory.Skills && item.file.type === 'dir') {
+			// Show input box for folder name confirmation
+			const folderName = await vscode.window.showInputBox({
+				prompt: `Download skill folder ${item.name} to ${targetFolder}`,
+				value: item.name,
+				validateInput: (value) => {
+					if (!value || value.trim() === '') {
+						return 'Folder name cannot be empty';
+					}
+					return null;
 				}
-				return null;
+			});
+
+			if (!folderName) {
+				return; // User cancelled
 			}
-		});
 
-		if (!filename) {
-			return; // User cancelled
-		}
+			const targetSkillPath = path.join(fullTargetPath, folderName);
 
-		const targetFilePath = path.join(fullTargetPath, filename);
+			// Check if folder exists
+			if (fs.existsSync(targetSkillPath)) {
+				const overwrite = await vscode.window.showWarningMessage(
+					`Skill folder ${folderName} already exists. Do you want to overwrite it?`,
+					'Overwrite', 'Cancel'
+				);
 
-		// Check if file exists
-		if (fs.existsSync(targetFilePath)) {
-			const overwrite = await vscode.window.showWarningMessage(
-				`File ${filename} already exists. Do you want to overwrite it?`,
-				'Overwrite', 'Cancel'
+				if (overwrite !== 'Overwrite') {
+					return;
+				}
+
+				// Remove existing folder
+				fs.rmSync(targetSkillPath, { recursive: true, force: true });
+			}
+
+			// Create skill folder
+			fs.mkdirSync(targetSkillPath, { recursive: true });
+
+			// Get all contents of the skill folder recursively
+			const contents = await githubService.getDirectoryContents(item.repo, item.file.path);
+
+			// Download each file in the skill folder
+			for (const fileItem of contents) {
+				if (fileItem.type === 'file') {
+					// Calculate relative path within the skill folder
+					// Remove the skill folder path prefix to get the relative path
+					const skillFolderPath = item.file.path.endsWith('/') ? item.file.path : item.file.path + '/';
+					const relativePath = fileItem.path.startsWith(skillFolderPath) 
+						? fileItem.path.substring(skillFolderPath.length)
+						: fileItem.path;
+					const targetFilePath = path.join(targetSkillPath, relativePath);
+
+					// Create parent directory if needed
+					const parentDir = path.dirname(targetFilePath);
+					if (!fs.existsSync(parentDir)) {
+						fs.mkdirSync(parentDir, { recursive: true });
+					}
+
+					// Download and save file
+					const content = await githubService.getFileContent(fileItem.download_url);
+					fs.writeFileSync(targetFilePath, content, 'utf8');
+				}
+			}
+
+			// Record the download
+			await downloadTracker.recordDownload(item);
+
+			// Show success message
+			const openFolder = await vscode.window.showInformationMessage(
+				`Successfully downloaded skill folder ${folderName}`,
+				'Open Folder'
 			);
 
-			if (overwrite !== 'Overwrite') {
-				return;
+			if (openFolder === 'Open Folder') {
+				// Open the SKILL.md file if it exists
+				const skillMdPath = path.join(targetSkillPath, 'SKILL.md');
+				if (fs.existsSync(skillMdPath)) {
+					const document = await vscode.workspace.openTextDocument(skillMdPath);
+					await vscode.window.showTextDocument(document);
+				} else {
+					// If no SKILL.md, just reveal the folder
+					await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(targetSkillPath));
+				}
 			}
-		}
+		} else {
+			// Regular file download (for other categories)
+			// Show input box for filename confirmation
+			const filename = await vscode.window.showInputBox({
+				prompt: `Download ${item.name} to ${targetFolder}`,
+				value: item.name,
+				validateInput: (value) => {
+					if (!value || value.trim() === '') {
+						return 'Filename cannot be empty';
+					}
+					return null;
+				}
+			});
 
-		// Create directory if it doesn't exist
-		if (!fs.existsSync(fullTargetPath)) {
-			fs.mkdirSync(fullTargetPath, { recursive: true });
-		}
+			if (!filename) {
+				return; // User cancelled
+			}
 
-		// Fetch content and save file
-		const content = await githubService.getFileContent(item.file.download_url);
-		fs.writeFileSync(targetFilePath, content, 'utf8');
+			const targetFilePath = path.join(fullTargetPath, filename);
 
-		// Show success message and offer to open file
-		const openFile = await vscode.window.showInformationMessage(
-			`Successfully downloaded ${filename}`,
-			'Open File'
-		);
+			// Check if file exists
+			if (fs.existsSync(targetFilePath)) {
+				const overwrite = await vscode.window.showWarningMessage(
+					`File ${filename} already exists. Do you want to overwrite it?`,
+					'Overwrite', 'Cancel'
+				);
 
-		if (openFile === 'Open File') {
-			const document = await vscode.workspace.openTextDocument(targetFilePath);
-			await vscode.window.showTextDocument(document);
+				if (overwrite !== 'Overwrite') {
+					return;
+				}
+			}
+
+			// Create directory if it doesn't exist
+			if (!fs.existsSync(fullTargetPath)) {
+				fs.mkdirSync(fullTargetPath, { recursive: true });
+			}
+
+			// Fetch content and save file
+			const content = await githubService.getFileContent(item.file.download_url);
+			fs.writeFileSync(targetFilePath, content, 'utf8');
+
+			// Record the download with content for hash calculation
+			await downloadTracker.recordDownload(item, content);
+
+			// Show success message and offer to open file
+			const openFile = await vscode.window.showInformationMessage(
+				`Successfully downloaded ${filename}`,
+				'Open File'
+			);
+
+			if (openFile === 'Open File') {
+				const document = await vscode.workspace.openTextDocument(targetFilePath);
+				await vscode.window.showTextDocument(document);
+			}
 		}
 
 	} catch (error) {
@@ -845,19 +937,63 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 
 async function previewCopilotItem(item: CopilotItem, githubService: GitHubService, previewProvider: CopilotPreviewProvider): Promise<void> {
 	try {
-		// Fetch content if not already cached
-		if (!item.content) {
-			item.content = await githubService.getFileContent(item.file.download_url);
+		// For Skills folders, preview the SKILL.md file
+		if (item.category === CopilotCategory.Skills && item.file.type === 'dir') {
+			// Get the contents of the skill folder
+			const contents = await githubService.getDirectoryContents(item.repo, item.file.path);
+			
+			// Find SKILL.md file
+			const skillMdFile = contents.find(f => f.name === 'SKILL.md' && f.type === 'file');
+			
+			if (skillMdFile) {
+				// Fetch SKILL.md content
+				item.content = await githubService.getFileContent(skillMdFile.download_url);
+				
+				// Create and show preview document
+				const previewUri = vscode.Uri.parse(`copilot-preview:${encodeURIComponent(item.name + '/SKILL.md')}`);
+				
+				// Set the item content in the preview provider
+				previewProvider.setItem(previewUri, item);
+				
+				const doc = await vscode.workspace.openTextDocument(previewUri);
+				await vscode.window.showTextDocument(doc, { preview: true });
+			} else {
+				// No SKILL.md found, show list of files in the folder
+				const skillFolderPath = item.file.path.endsWith('/') ? item.file.path : item.file.path + '/';
+				const fileList = contents
+					.filter(f => f.type === 'file')
+					.map(f => {
+						const relativePath = f.path.startsWith(skillFolderPath) 
+							? f.path.substring(skillFolderPath.length)
+							: f.path;
+						return `- ${relativePath}`;
+					})
+					.join('\n');
+				
+				item.content = `# ${item.name}\n\n**Skill Folder Contents:**\n\n${fileList}\n\nDownload this skill to get all files.`;
+				
+				const previewUri = vscode.Uri.parse(`copilot-preview:${encodeURIComponent(item.name)}`);
+				previewProvider.setItem(previewUri, item);
+				
+				const doc = await vscode.workspace.openTextDocument(previewUri);
+				await vscode.window.showTextDocument(doc, { preview: true });
+			}
+		} else {
+			// Regular file preview (for other categories)
+			// Fetch content if not already cached
+			if (!item.content) {
+				item.content = await githubService.getFileContent(item.file.download_url);
+			}
+
+			// Create and show preview document
+			const previewUri = vscode.Uri.parse(`copilot-preview:${encodeURIComponent(item.name)}`);
+
+			// Set the item content in the preview provider
+			previewProvider.setItem(previewUri, item);
+
+			const doc = await vscode.workspace.openTextDocument(previewUri);
+			await vscode.window.showTextDocument(doc, { preview: true });
 		}
-
-		// Create and show preview document
-		const previewUri = vscode.Uri.parse(`copilot-preview:${encodeURIComponent(item.name)}`);
-
-		// Set the item content in the preview provider
-		previewProvider.setItem(previewUri, item);
-
-		const doc = await vscode.workspace.openTextDocument(previewUri);
-		await vscode.window.showTextDocument(doc, { preview: true });
 
 	} catch (error) {
 		vscode.window.showErrorMessage(`Failed to preview ${item.name}: ${error}`);
