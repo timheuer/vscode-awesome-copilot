@@ -30,7 +30,7 @@ A VS Code extension that allows you to browse, preview, and download GitHub Copi
 Downloaded files are organized in your workspace as follows:
 
 - **Collections** → `.github/collections/`
-- **Instructions** → `.github/instructions/`  
+- **Instructions** → `.github/instructions/`
 - **Prompts** → `.github/prompts/`
 - **Agents** → `.github/agents/`
 - **Skills** → `.github/skills/` (entire folders with SKILL.md and supporting files)

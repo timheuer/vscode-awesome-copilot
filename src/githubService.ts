@@ -612,55 +612,6 @@ export class GitHubService {
         }
     }
 
-    // Get file metadata from GitHub API (includes download_url)
-    async getFileMetadata(repo: RepoSource, filePath: string): Promise<GitHubFile> {
-        try {
-            const apiUrl = this.buildApiUrlForPath(repo, filePath);
-            const isEnterprise = !!repo.baseUrl;
-            const headers = await this.createRequestHeaders(isEnterprise);
-
-            const axiosConfig: any = {
-                timeout: 10000,
-                headers: headers,
-                withCredentials: isEnterprise
-            };
-
-            if (isEnterprise) {
-                const httpsAgent = this.createHttpsAgent(apiUrl);
-                if (httpsAgent) {
-                    axiosConfig.httpsAgent = httpsAgent;
-                    axiosConfig.agent = httpsAgent;
-                }
-            }
-
-            let response;
-            const config = vscode.workspace.getConfiguration('awesome-copilot');
-            const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
-
-            if (isEnterprise && allowInsecureEnterpriseCerts) {
-                const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-                process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
-                try {
-                    response = await axios.get<GitHubFile>(apiUrl, axiosConfig);
-                } finally {
-                    if (originalRejectUnauthorized === undefined) {
-                        delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-                    } else {
-                        process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
-                    }
-                }
-            } else {
-                response = await axios.get<GitHubFile>(apiUrl, axiosConfig);
-            }
-
-            return { ...response.data, repo };
-        } catch (error) {
-            getLogger().error(`Failed to get file metadata for ${filePath}:`, error);
-            throw new Error(`Failed to get file metadata: ${error}`);
-        }
-    }
-
     // Build API URL for GitHub or GitHub Enterprise Server
     private buildApiUrl(repo: RepoSource, category: CopilotCategory): string {
         if (repo.baseUrl) {

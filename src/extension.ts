@@ -802,11 +802,22 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 			fs.writeFileSync(collectionYmlPath, ymlContent, 'utf8');
 
 			// Download sibling markdown file if it exists (e.g., file.collection.yml -> file.md)
-			const baseName = item.name.replace('.collection.yml', '');
+			let baseName = item.name;
+			if (baseName.toLowerCase().endsWith('.collection.yml')) {
+				baseName = baseName.slice(0, -'.collection.yml'.length);
+			} else if (baseName.toLowerCase().endsWith('.yml')) {
+				baseName = baseName.slice(0, -'.yml'.length);
+			}
 			const siblingMdName = `${baseName}.md`;
 			
 			try {
-				const siblingUrl = item.file.download_url.replace(item.name, siblingMdName);
+				const url = new URL(item.file.download_url);
+				const segments = url.pathname.split('/');
+				if (segments.length > 0) {
+					segments[segments.length - 1] = siblingMdName;
+					url.pathname = segments.join('/');
+				}
+				const siblingUrl = url.toString();
 				const siblingContent = await githubService.getFileContent(siblingUrl);
 				const siblingFilePath = path.join(fullTargetPath, siblingMdName);
 				fs.writeFileSync(siblingFilePath, siblingContent, 'utf8');
