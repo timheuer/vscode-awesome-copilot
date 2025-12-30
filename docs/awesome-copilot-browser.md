@@ -52,7 +52,7 @@ A VS Code extension that provides an explorer view to browse, preview, and downl
    - **Description**: Download selected files to appropriate workspace folders
    - **Acceptance Criteria**:
      - [ ] Download button/icon appears for each file item
-     - [ ] Collections save to `.github/copilot-collections/`
+     - [ ] Collections save to `.github/collections/`
      - [ ] Instructions save to `.github/instructions/`
      - [ ] Prompts save to `.github/copilot-prompts/`
      - [ ] Agents save to `.github/agents/`

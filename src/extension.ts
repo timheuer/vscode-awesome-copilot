@@ -804,7 +804,6 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 			// Download sibling markdown file if it exists (e.g., file.collection.yml -> file.md)
 			const baseName = item.name.replace('.collection.yml', '');
 			const siblingMdName = `${baseName}.md`;
-			const siblingMdPath = item.file.path.replace(item.name, siblingMdName);
 			
 			try {
 				const siblingUrl = item.file.download_url.replace(item.name, siblingMdName);

@@ -502,13 +502,30 @@ export class GitHubService {
     async parseCollectionYaml(downloadUrl: string): Promise<CollectionMetadata> {
         try {
             const content = await this.getFileContent(downloadUrl);
-            const metadata = yaml.load(content) as CollectionMetadata;
-            
-            if (!metadata || !metadata.items || !Array.isArray(metadata.items)) {
-                throw new Error('Invalid collection YAML format: missing or invalid items array');
+            const metadata = yaml.load(content) as CollectionMetadata | null;
+
+            // Basic structural validation of required fields
+            if (!metadata || typeof metadata !== 'object') {
+                throw new Error('Invalid collection YAML format: metadata is missing or not an object');
             }
-            
-            return metadata;
+
+            if (typeof (metadata as any).id !== 'string' || !(metadata as any).id.trim()) {
+                throw new Error('Invalid collection YAML format: missing or invalid "id" field');
+            }
+
+            if (typeof (metadata as any).name !== 'string' || !(metadata as any).name.trim()) {
+                throw new Error('Invalid collection YAML format: missing or invalid "name" field');
+            }
+
+            if (typeof (metadata as any).description !== 'string' || !(metadata as any).description.trim()) {
+                throw new Error('Invalid collection YAML format: missing or invalid "description" field');
+            }
+
+            if (!Array.isArray((metadata as any).items)) {
+                throw new Error('Invalid collection YAML format: missing or invalid "items" array');
+            }
+
+            return metadata as CollectionMetadata;
         } catch (error) {
             getLogger().error('Failed to parse collection YAML:', error);
             throw new Error(`Failed to parse collection YAML: ${error}`);
