@@ -855,22 +855,42 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 							continue;
 					}
 
-					// Extract filename from path
-					const fileName = path.basename(collectionItem.path);
+					const isSkill = collectionItem.kind === 'skill';
+
+					// Extract filename from path for non-skill items
+					const fileName = isSkill ? undefined : path.basename(collectionItem.path);
 					
-					getLogger().debug(`Fetching file list for ${targetCategory} to find: ${fileName}`);
+					if (isSkill) {
+						getLogger().debug(`Fetching file list for ${targetCategory} to find skill at path: ${collectionItem.path}`);
+					} else {
+						getLogger().debug(`Fetching file list for ${targetCategory} to find file: ${fileName}`);
+					}
 
 					// Fetch files from the category using the same method as tree view
 					const categoryFiles = await githubService.getFilesByRepo(item.repo, targetCategory);
 					
-					// Find the matching file by name
-					const matchingFile = categoryFiles.find(file => file.name === fileName);
+					// Find the matching entry
+					const matchingFile = categoryFiles.find(file => {
+						if (isSkill) {
+							const filePath = (file as any).path as string | undefined;
+							if (!filePath) {
+								return false;
+							}
+							// Match the directory itself or any file within it
+							return filePath === collectionItem.path || filePath.startsWith(collectionItem.path + '/');
+						}
+						// Non-skill: match by filename as before
+						return file.name === fileName;
+					});
 					
 					if (!matchingFile) {
+						if (isSkill) {
+							throw new Error(`Skill at path ${collectionItem.path} not found in ${targetCategory} category`);
+						}
 						throw new Error(`File ${fileName} not found in ${targetCategory} category`);
 					}
 
-					getLogger().debug(`Found file, downloading from: ${matchingFile.download_url}`);
+					getLogger().debug(`Found ${isSkill ? 'skill item' : 'file'}, downloading from: ${matchingFile.download_url}`);
 
 					// Build the target folder path
 					const itemTargetFolder = FOLDER_PATHS[targetCategory];
@@ -893,8 +913,37 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 						await new Promise(resolve => setTimeout(resolve, 500));
 					}
 				} catch (error) {
-					getLogger().error(`Failed to download ${collectionItem.path}:`, error);
-					failedFiles.push(`${collectionItem.kind}: ${collectionItem.path}`);
+					let failureReason = 'Unknown error';
+
+					if (axios.isAxiosError(error)) {
+						if (error.response?.status === 404) {
+							failureReason = 'File not found in repository (check YAML path and repository contents).';
+						} else if (
+							!error.response ||
+							error.code === 'ENOTFOUND' ||
+							error.code === 'ECONNREFUSED' ||
+							error.code === 'ECONNRESET' ||
+							error.code === 'ETIMEDOUT'
+						) {
+							failureReason = 'Network error while downloading file (check internet connection or GitHub availability).';
+						} else if (error.response?.status) {
+							failureReason = `HTTP error ${error.response.status} while downloading file.`;
+						}
+						getLogger().error(
+							`Failed to download ${collectionItem.path} (${failureReason})`,
+							error
+						);
+					} else if (error instanceof Error) {
+						failureReason = error.message;
+						getLogger().error(
+							`Failed to download ${collectionItem.path} (${failureReason})`,
+							error
+						);
+					} else {
+						getLogger().error(`Failed to download ${collectionItem.path}:`, error);
+					}
+
+					failedFiles.push(`${collectionItem.kind}: ${collectionItem.path} – ${failureReason}`);
 				}
 			}
 

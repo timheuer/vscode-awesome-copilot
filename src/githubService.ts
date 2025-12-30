@@ -521,10 +521,26 @@ export class GitHubService {
                 throw new Error('Invalid collection YAML format: missing or invalid "description" field');
             }
 
-            if (!Array.isArray((metadata as any).items)) {
+            const items = (metadata as any).items;
+            if (!Array.isArray(items)) {
                 throw new Error('Invalid collection YAML format: missing or invalid "items" array');
             }
 
+            items.forEach((item: any, index: number) => {
+                if (!item || typeof item !== 'object') {
+                    throw new Error(`Invalid collection YAML format: item at index ${index} is not an object`);
+                }
+
+                const path = (item as any).path;
+                if (typeof path !== 'string' || !path.trim()) {
+                    throw new Error(`Invalid collection YAML format: item at index ${index} is missing or has an invalid "path" field`);
+                }
+
+                const kind = (item as any).kind;
+                if (typeof kind !== 'string' || !kind.trim()) {
+                    throw new Error(`Invalid collection YAML format: item at index ${index} is missing or has an invalid "kind" field`);
+                }
+            });
             return metadata as CollectionMetadata;
         } catch (error) {
             getLogger().error('Failed to parse collection YAML:', error);
