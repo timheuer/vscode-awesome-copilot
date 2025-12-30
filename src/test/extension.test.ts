@@ -84,14 +84,14 @@ display:
 
 			const result = await service.parseCollectionYaml('http://test-url.com/collection.yml');
 
-		assert.strictEqual(result.metadata.id, 'test-collection');
-		assert.strictEqual(result.metadata.name, 'Test Collection');
-		assert.strictEqual(result.metadata.description, 'A test collection for validation');
-		assert.ok(Array.isArray(result.metadata.items));
-		assert.strictEqual(result.metadata.items.length, 2);
-		assert.strictEqual(result.metadata.items[0].path, '.github/instructions/test.md');
-		assert.strictEqual(result.metadata.items[0].kind, 'instruction');
-		assert.strictEqual(result.rawContent, validYaml);
+			assert.strictEqual(result.metadata.id, 'test-collection');
+			assert.strictEqual(result.metadata.name, 'Test Collection');
+			assert.strictEqual(result.metadata.description, 'A test collection for validation');
+			assert.ok(Array.isArray(result.metadata.items));
+			assert.strictEqual(result.metadata.items.length, 2);
+			assert.strictEqual(result.metadata.items[0].path, '.github/instructions/test.md');
+			assert.strictEqual(result.metadata.items[0].kind, 'instruction');
+			assert.strictEqual(result.rawContent, validYaml);
 	});
 
 	test('should reject YAML missing id field', async () => {
@@ -330,7 +330,7 @@ items:
     kind: prompt
   - path: .github/agents/helper.md
     kind: agent
-  - path: .github/skills/analyzer.md
+  - path: .github/skills/analyzer
     kind: skill`;
 
 			(service as any).getFileContent = async () => validYaml;
