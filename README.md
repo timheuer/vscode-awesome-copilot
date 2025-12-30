@@ -1,8 +1,13 @@
 # Awesome GitHub Copilot Browser
 
-[![VS Marketplace Badge](https://img.shields.io/visual-studio-marketplace/v/timheuer.vscode-awesome-copilot?label=VS%20Code%20Marketplace&color=brightgreen&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=TimHeuer.vscode-awesome-copilot)
-
 A VS Code extension that allows you to browse, preview, and download GitHub Copilot customizations from the [awesome-copilot repository](https://github.com/github/awesome-copilot).
+
+[![VS Marketplace Badge](https://img.shields.io/visual-studio-marketplace/v/timheuer.awesome-copilot?label=VS%20Code%20Marketplace&color=brightgreen&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Rating](https://img.shields.io/visual-studio-marketplace/r/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Downloads](https://img.shields.io/visual-studio-marketplace/d/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Last Updated](https://img.shields.io/visual-studio-marketplace/last-updated/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot) [![Visual Studio Marketplace Release Date](https://img.shields.io/visual-studio-marketplace/release-date/timheuer.awesome-copilot?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=timheuer.awesome-copilot)
+
+## Install in VS Code
+
+[![Install in VS Code](https://img.shields.io/badge/Install%20in-VS%20Code-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](vscode:extension/timheuer.awesome-copilot)
+[![Install in VS Code Insiders](https://img.shields.io/badge/Install%20in-VS%20Code%20Insiders-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](vscode-insiders:extension/timheuer.awesome-copilot)
 
 ## Features
 
