@@ -19,12 +19,12 @@ suite('Extension Test Suite', () => {
 		assert.ok(service);
 	});
 
-	test('GitHub Service can fetch chat modes', async () => {
+	test('GitHub Service can fetch collections', async () => {
 		const service = new GitHubService();
 		try {
 			const files = await service.getFiles(CopilotCategory.Collections);
 			assert.ok(Array.isArray(files));
-			console.log(`Found ${files.length} chat mode files`);
+			console.log(`Found ${files.length} collection files`);
 		} catch (error) {
 			console.warn('Network test failed - this is expected in CI/offline environments:', error);
 		}

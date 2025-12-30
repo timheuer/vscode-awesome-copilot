@@ -528,7 +528,8 @@ export class GitHubService {
             return metadata as CollectionMetadata;
         } catch (error) {
             getLogger().error('Failed to parse collection YAML:', error);
-            throw new Error(`Failed to parse collection YAML: ${error}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to parse collection YAML: ${errorMessage}`);
         }
     }
 
