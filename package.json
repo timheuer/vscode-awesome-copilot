@@ -14,7 +14,7 @@
   },
   "qna": "https://github.com/timheuer/vscode-awesome-copilot/issues",
   "homepage": "https://github.com/timheuer/vscode-awesome-copilot",
-  "description": "Browse and download instructions, prompts, chat modes, and agents from the Awesome Copilot community",
+  "description": "Browse and download instructions, prompts, collections, and agents from the Awesome Copilot community",
   "version": "0.0.0-placeholder",
   "icon": "icon.png",
   "engines": {
@@ -130,7 +130,13 @@
         },
         "awesome-copilot.logLevel": {
           "type": "string",
-          "enum": ["error", "warn", "info", "debug", "trace"],
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
           "enumDescriptions": [
             "Only show error messages",
             "Show warnings and errors",
@@ -235,7 +241,7 @@
     "viewsWelcome": [
       {
         "view": "awesomeCopilotExplorer",
-        "contents": "No repositories configured.\n[Manage Sources](command:awesome-copilot.manageSources)\nBrowse and download instructions, prompts, chat modes, and agents from the Awesome Copilot community.",
+        "contents": "No repositories configured.\n[Manage Sources](command:awesome-copilot.manageSources)\nBrowse and download instructions, prompts, collections, and agents from the Awesome Copilot community.",
         "when": "config.awesome-copilot.showTreeView"
       }
     ],
@@ -302,6 +308,7 @@
     "deploy": "vsce publish"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.103.0",
@@ -317,6 +324,7 @@
   },
   "dependencies": {
     "@timheuer/vscode-ext-logger": "^0.1.35",
-    "axios": "^1.11.0"
+    "axios": "^1.11.0",
+    "js-yaml": "^4.1.0"
   }
 }

@@ -2,12 +2,12 @@
 
 ## Overview
 
-A VS Code extension that provides an explorer view to browse, preview, and download GitHub Copilot customizations (chat modes, instructions, prompts, and agents) from the awesome-copilot repository. Users can filter items by filename, preview content, and selectively download files to their workspace with proper GitHub Copilot folder structure.
+A VS Code extension that provides an explorer view to browse, preview, and download GitHub Copilot customizations (collections, instructions, prompts, and agents) from the awesome-copilot repository. Users can filter items by filename, preview content, and selectively download files to their workspace with proper GitHub Copilot folder structure.
 
 ## User Journey
 
 1. **Open Explorer View**: User opens the "Awesome Copilot" view in the VS Code Explorer panel
-2. **Browse Categories**: User sees four expandable sections: Chat Modes, Instructions, Prompts, and Agents
+2. **Browse Categories**: User sees four expandable sections: Collections, Instructions, Prompts, and Agents
 3. **Filter Content**: User types in filter textbox to narrow down items by filename
 4. **Preview Item**: User clicks on an item to see name and content preview
 5. **Select for Download**: User clicks download button on desired item
@@ -20,14 +20,14 @@ A VS Code extension that provides an explorer view to browse, preview, and downl
    - **Description**: Display a new tree view in VS Code Explorer panel titled "Awesome Copilot"
    - **Acceptance Criteria**:
      - [ ] Tree view appears in Explorer panel alongside existing views
-     - [ ] View shows four main categories: Chat Modes, Instructions, Prompts, and Agents
+     - [ ] View shows four main categories: Collections, Instructions, Prompts, and Agents
      - [ ] Each category is expandable/collapsible
      - [ ] View persists across VS Code sessions
 
 2. **FR-02**: Repository Data Fetching
    - **Description**: Fetch file listings from github.com/github/awesome-copilot repository
    - **Acceptance Criteria**:
-     - [ ] Extension fetches files from chatmodes/, instructions/, prompts/, and agents/ folders
+     - [ ] Extension fetches files from collections/, instructions/, prompts/, and agents/ folders
      - [ ] Data is cached locally for performance
      - [ ] Manual refresh button updates cached data
      - [ ] Graceful error handling for network failures
@@ -52,9 +52,9 @@ A VS Code extension that provides an explorer view to browse, preview, and downl
    - **Description**: Download selected files to appropriate workspace folders
    - **Acceptance Criteria**:
      - [ ] Download button/icon appears for each file item
-     - [ ] Chat modes save to `.github/copilot-chatmodes/`
+     - [ ] Collections save to `.github/collections/`
      - [ ] Instructions save to `.github/instructions/`
-     - [ ] Prompts save to `.github/copilot-prompts/`
+     - [ ] Prompts save to `.github/prompts/`
      - [ ] Agents save to `.github/agents/`
      - [ ] Creates folders if they don't exist
 

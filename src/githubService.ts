@@ -2,7 +2,8 @@
 import axios from 'axios';
 import * as vscode from 'vscode';
 import * as https from 'https';
-import { GitHubFile, CopilotCategory, CacheEntry, RepoSource } from './types';
+import * as yaml from 'js-yaml';
+import { GitHubFile, CopilotCategory, CacheEntry, RepoSource, CollectionMetadata, CollectionParseResult } from './types';
 import { RepoStorage } from './repoStorage';
 import { StatusBarManager } from './statusBarManager';
 import { getLogger } from './logger';
@@ -291,10 +292,14 @@ export class GitHubService {
                 }
 
                 // For Skills category, show directories (folders); for other categories, show files
+                // For Collections category, show only .yml files
                 const files = (response.data as GitHubFile[])
                     .filter((file: GitHubFile) => {
                         if (category === CopilotCategory.Skills) {
                             return file.type === 'dir';
+                        }
+                        if (category === CopilotCategory.Collections) {
+                            return file.type === 'file' && file.name.endsWith('.yml');
                         }
                         return file.type === 'file';
                     })
@@ -404,10 +409,14 @@ export class GitHubService {
             }
 
             // For Skills category, show directories (folders); for other categories, show files
+            // For Collections category, show only .yml files
             const files = (response.data as GitHubFile[])
                 .filter((file: GitHubFile) => {
                     if (category === CopilotCategory.Skills) {
                         return file.type === 'dir';
+                    }
+                    if (category === CopilotCategory.Collections) {
+                        return file.type === 'file' && file.name.endsWith('.yml');
                     }
                     return file.type === 'file';
                 })
@@ -486,6 +495,65 @@ export class GitHubService {
         } catch (error) {
             getLogger().error('Failed to fetch file content:', error);
             throw new Error(`Failed to fetch file content: ${error}`);
+        }
+    }
+
+    // Parse collection YAML file and return metadata with raw content
+    async parseCollectionYaml(downloadUrl: string): Promise<CollectionParseResult> {
+        try {
+            const content = await this.getFileContent(downloadUrl);
+            const metadata = yaml.load(content) as CollectionMetadata | null;
+
+            // Basic structural validation of required fields
+            if (!metadata || typeof metadata !== 'object') {
+                throw new Error('Invalid collection YAML format: metadata is missing or not an object');
+            }
+
+            if (typeof (metadata as any).id !== 'string' || !(metadata as any).id.trim()) {
+                throw new Error('Invalid collection YAML format: missing or invalid "id" field');
+            }
+
+            if (typeof (metadata as any).name !== 'string' || !(metadata as any).name.trim()) {
+                throw new Error('Invalid collection YAML format: missing or invalid "name" field');
+            }
+
+            if (typeof (metadata as any).description !== 'string' || !(metadata as any).description.trim()) {
+                throw new Error('Invalid collection YAML format: missing or invalid "description" field');
+            }
+
+            const items = (metadata as any).items;
+            if (!Array.isArray(items)) {
+                throw new Error('Invalid collection YAML format: missing or invalid "items" array');
+            }
+
+            items.forEach((item: any, index: number) => {
+                if (!item || typeof item !== 'object') {
+                    throw new Error(`Invalid collection YAML format: item at index ${index} is not an object`);
+                }
+
+                const path = (item as any).path;
+                if (typeof path !== 'string' || !path.trim()) {
+                    throw new Error(`Invalid collection YAML format: item at index ${index} is missing or has an invalid "path" field`);
+                }
+
+                const kind = (item as any).kind;
+                if (typeof kind !== 'string' || !kind.trim()) {
+                    throw new Error(`Invalid collection YAML format: item at index ${index} is missing or has an invalid "kind" field`);
+                }
+
+                const allowedKinds = ['instruction', 'prompt', 'agent', 'skill'];
+                if (!allowedKinds.includes(kind)) {
+                    throw new Error(
+                        `Invalid collection YAML format: item at index ${index} has unsupported "kind" value "${kind}". ` +
+                        `Allowed kinds are: ${allowedKinds.join(', ')}`
+                    );
+                }
+            });
+            return { metadata: metadata as CollectionMetadata, rawContent: content };
+        } catch (error) {
+            getLogger().error('Failed to parse collection YAML:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to parse collection YAML: ${errorMessage}`);
         }
     }
 

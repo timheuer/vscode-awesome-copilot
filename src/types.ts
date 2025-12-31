@@ -34,7 +34,7 @@ export interface CopilotItem {
 }
 
 export enum CopilotCategory {
-    ChatModes = 'chatmodes',
+    Collections = 'collections',
     Instructions = 'instructions',
     Prompts = 'prompts',
     Agents = 'agents',
@@ -51,7 +51,7 @@ export interface CacheEntry {
 }
 
 export const CATEGORY_LABELS: Record<CopilotCategory, string> = {
-    [CopilotCategory.ChatModes]: 'Chat Modes',
+    [CopilotCategory.Collections]: 'Collections',
     [CopilotCategory.Instructions]: 'Instructions',
     [CopilotCategory.Prompts]: 'Prompts',
     [CopilotCategory.Agents]: 'Agents',
@@ -59,9 +59,32 @@ export const CATEGORY_LABELS: Record<CopilotCategory, string> = {
 };
 
 export const FOLDER_PATHS: Record<CopilotCategory, string> = {
-    [CopilotCategory.ChatModes]: '.github/chatmodes',
+    [CopilotCategory.Collections]: '.github/collections',
     [CopilotCategory.Instructions]: '.github/instructions',
     [CopilotCategory.Prompts]: '.github/prompts',
     [CopilotCategory.Agents]: '.github/agents',
     [CopilotCategory.Skills]: '.github/skills'
 };
+
+// Collection metadata structure from YAML files
+export interface CollectionMetadata {
+    id: string;
+    name: string;
+    description: string;
+    tags?: string[];
+    items: CollectionItem[];
+    display?: {
+        ordering?: 'alpha' | 'custom';
+        show_badge?: boolean;
+    };
+}
+
+export interface CollectionItem {
+    path: string;
+    kind: 'instruction' | 'prompt' | 'agent' | 'skill';
+}
+
+export interface CollectionParseResult {
+    metadata: CollectionMetadata;
+    rawContent: string;
+}
