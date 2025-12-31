@@ -900,84 +900,84 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 
                     const itemTargetFilePath = path.join(itemFullTargetPath, fileName);
 
-                // Handle skills differently - they are directories with multiple files
-                if (isSkill) {
-                    const targetSkillPath = itemTargetFilePath;
+                    // Handle skills differently - they are directories with multiple files
+                    if (isSkill) {
+                        const targetSkillPath = itemTargetFilePath;
 
-                    // Check if folder exists and remove if it does
-                    if (fs.existsSync(targetSkillPath)) {
-                        fs.rmSync(targetSkillPath, { recursive: true, force: true });
-                    }
-
-                    // Create skill folder
-                    fs.mkdirSync(targetSkillPath, { recursive: true });
-
-                    // Get all contents of the skill folder recursively
-                    const contents = await githubService.getDirectoryContents(item.repo, collectionItem.path);
-
-                    // Download each file in the skill folder
-                    for (const fileItem of contents) {
-                        if (fileItem.type === 'file') {
-                            // Calculate relative path within the skill folder
-                            const skillFolderPath = collectionItem.path.endsWith('/') ? collectionItem.path : collectionItem.path + '/';
-                            const relativePath = fileItem.path.startsWith(skillFolderPath)
-                                ? fileItem.path.substring(skillFolderPath.length)
-                                : fileItem.path;
-                            const targetFilePath = path.join(targetSkillPath, relativePath);
-
-                            // Create parent directory if needed
-                            const parentDir = path.dirname(targetFilePath);
-                            if (!fs.existsSync(parentDir)) {
-                                fs.mkdirSync(parentDir, { recursive: true });
-                            }
-
-                            // Download and save file
-                            const content = await githubService.getFileContent(fileItem.download_url);
-                            fs.writeFileSync(targetFilePath, content, 'utf8');
+                        // Check if folder exists and remove if it does
+                        if (fs.existsSync(targetSkillPath)) {
+                            fs.rmSync(targetSkillPath, { recursive: true, force: true });
                         }
+
+                        // Create skill folder
+                        fs.mkdirSync(targetSkillPath, { recursive: true });
+
+                        // Get all contents of the skill folder recursively
+                        const contents = await githubService.getDirectoryContents(item.repo, collectionItem.path);
+
+                        // Download each file in the skill folder
+                        for (const fileItem of contents) {
+                            if (fileItem.type === 'file') {
+                                // Calculate relative path within the skill folder
+                                const skillFolderPath = collectionItem.path.endsWith('/') ? collectionItem.path : collectionItem.path + '/';
+                                const relativePath = fileItem.path.startsWith(skillFolderPath)
+                                    ? fileItem.path.substring(skillFolderPath.length)
+                                    : fileItem.path;
+                                const targetFilePath = path.join(targetSkillPath, relativePath);
+
+                                // Create parent directory if needed
+                                const parentDir = path.dirname(targetFilePath);
+                                if (!fs.existsSync(parentDir)) {
+                                    fs.mkdirSync(parentDir, { recursive: true });
+                                }
+
+                                // Download and save file
+                                const content = await githubService.getFileContent(fileItem.download_url);
+                                fs.writeFileSync(targetFilePath, content, 'utf8');
+                            }
+                        }
+
+                        downloadedFiles.push(`${collectionItem.kind}: ${fileName} (${contents.filter(f => f.type === 'file').length} files)`);
+                    } else {
+                        // Non-skill items are single files
+                        // Download the file using the download_url from GitHub API
+                        const fileContent = await githubService.getFileContent(matchingFile.download_url);
+                        fs.writeFileSync(itemTargetFilePath, fileContent, 'utf8');
+                        downloadedFiles.push(`${collectionItem.kind}: ${fileName}`);
                     }
+                    if (i < metadata.items.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                } catch (error) {
+                    let failureReason = 'Unknown error';
 
-                    downloadedFiles.push(`${collectionItem.kind}: ${fileName} (${contents.filter(f => f.type === 'file').length} files)`);
-                } else {
-                    // Non-skill items are single files
-                    // Download the file using the download_url from GitHub API
-                    const fileContent = await githubService.getFileContent(matchingFile.download_url);
-                    fs.writeFileSync(itemTargetFilePath, fileContent, 'utf8');
-                    downloadedFiles.push(`${collectionItem.kind}: ${fileName}`);
-                }
-    if (i < metadata.items.length - 1) {
-     await new Promise(resolve => setTimeout(resolve, 500));
-    }
-   } catch (error) {
-    let failureReason = 'Unknown error';
-
-    if (axios.isAxiosError(error)) {
-     if (error.response?.status === 404) {
-      failureReason = 'File not found in repository (check YAML path and repository contents).';
-     } else if (
-      !error.response ||
-      error.code === 'ENOTFOUND' ||
-      error.code === 'ECONNREFUSED' ||
-      error.code === 'ECONNRESET' ||
-      error.code === 'ETIMEDOUT'
-     ) {
-      failureReason = 'Network error while downloading file (check internet connection or GitHub availability).';
-     } else if (error.response?.status) {
-      failureReason = `HTTP error ${error.response.status} while downloading file.`;
-     }
-     getLogger().error(
-      `Failed to download ${collectionItem.path} (${failureReason})`,
-      error
-     );
-    } else if (error instanceof Error) {
-     failureReason = error.message;
-     getLogger().error(
-      `Failed to download ${collectionItem.path} (${failureReason})`,
-      error
-     );
-    } else {
-     getLogger().error(`Failed to download ${collectionItem.path}:`, error);
-    }
+                    if (axios.isAxiosError(error)) {
+                        if (error.response?.status === 404) {
+                            failureReason = 'File not found in repository (check YAML path and repository contents).';
+                        } else if (
+                            !error.response ||
+                            error.code === 'ENOTFOUND' ||
+                            error.code === 'ECONNREFUSED' ||
+                            error.code === 'ECONNRESET' ||
+                            error.code === 'ETIMEDOUT'
+                        ) {
+                            failureReason = 'Network error while downloading file (check internet connection or GitHub availability).';
+                        } else if (error.response?.status) {
+                            failureReason = `HTTP error ${error.response.status} while downloading file.`;
+                        }
+                        getLogger().error(
+                            `Failed to download ${collectionItem.path} (${failureReason})`,
+                            error
+                        );
+                    } else if (error instanceof Error) {
+                        failureReason = error.message;
+                        getLogger().error(
+                            `Failed to download ${collectionItem.path} (${failureReason})`,
+                            error
+                        );
+                    } else {
+                        getLogger().error(`Failed to download ${collectionItem.path}:`, error);
+                    }
 
                     failedFiles.push(`${collectionItem.kind}: ${collectionItem.path} – ${failureReason}`);
                 }
