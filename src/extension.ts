@@ -79,6 +79,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	logger.debug('allowInsecureEnterpriseCerts setting:', allowInsecureEnterpriseCerts);
 	logger.trace('Configuration inspection:', config.inspect('allowInsecureEnterpriseCerts'));
 
+	const statusBarManager = new StatusBarManager();
+	const githubService = new GitHubService(statusBarManager);
+	const downloadTracker = new DownloadTracker(context);
+	const treeProvider = new AwesomeCopilotProvider(githubService, context, downloadTracker);
+	const previewProvider = new CopilotPreviewProvider();
+
 	// Register manage sources command (UI entry point)
 	// Static imports for ESM/TS compatibility
 
@@ -170,149 +176,18 @@ export async function activate(context: vscode.ExtensionContext) {
 					const foundFolders: string[] = [];
 					const missingFolders: string[] = [];
 
-					// Show progress for enterprise repos
 					if (baseUrl) {
 						statusBarManager.showLoading(`Validating repository structure for ${owner}/${repo}...`);
 					}
 
-					// Helper function to check if a folder exists
+					const repoSource = baseUrl ? { owner, repo, baseUrl } : { owner, repo };
+
 					const checkFolder = async (cat: string): Promise<boolean> => {
-						// Build correct API URL for GitHub or GitHub Enterprise
-						let apiUrl: string;
-						if (baseUrl) {
-							apiUrl = `${baseUrl}/api/v3/repos/${owner}/${repo}/contents/${cat}`;
-						} else {
-							apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cat}`;
-						}
-
-						const headers: Record<string, string> = {
-							'User-Agent': 'VSCode-AwesomeCopilot-Extension',
-							'Accept': 'application/vnd.github.v3+json'
-						};
-
-						if (baseUrl) {
-							// Enhanced enterprise GitHub auth headers
-							headers['X-Requested-With'] = 'VSCode-Extension';
-							headers['Accept-Encoding'] = 'gzip, deflate, br';
-							headers['Accept-Language'] = 'en-US,en;q=0.9';
-							headers['Cache-Control'] = 'no-cache';
-							headers['Pragma'] = 'no-cache';
-							headers['Sec-Fetch-Dest'] = 'empty';
-							headers['Sec-Fetch-Mode'] = 'cors';
-							headers['Sec-Fetch-Site'] = 'same-origin';
-
-							// Priority 1: Check for configured enterprise token
-							const config = vscode.workspace.getConfiguration('awesome-copilot');
-							const enterpriseToken = config.get<string>('enterpriseToken');
-
-							if (enterpriseToken) {
-								headers['Authorization'] = `token ${enterpriseToken}`;
-								logger.debug('🔑 Using configured enterprise GitHub token');
-							} else {
-								// Priority 2: Try VS Code's authentication provider
-								try {
-									const session = await vscode.authentication.getSession('github', [], {
-										createIfNone: false,
-										silent: true
-									});
-									if (session && session.accessToken) {
-										headers['Authorization'] = `token ${session.accessToken}`;
-										logger.debug('🔑 Using VS Code GitHub authentication');
-									} else {
-										logger.info('📝 No authentication available - please configure enterprise token');
-									}
-								} catch (authError) {
-									logger.info('📝 VS Code GitHub auth not available - please configure enterprise token');
-								}
-							}
-						}
-
-						// Enhanced SSL handling with security configuration
-						const config = vscode.workspace.getConfiguration('awesome-copilot');
-						const allowInsecureEnterpriseCerts = config.get<boolean>('allowInsecureEnterpriseCerts', false);
-
-						// Debug logging for SSL handling
-						if (baseUrl) {
-							logger.debug('Enterprise GitHub detected:', baseUrl);
-							logger.debug('API URL:', apiUrl);
-							logger.debug('Configuration check - allowInsecureEnterpriseCerts:', allowInsecureEnterpriseCerts);
-							logger.trace('Configuration raw value:', config.get('allowInsecureEnterpriseCerts'));
-							logger.trace('Full config inspection:', config.inspect('allowInsecureEnterpriseCerts'));
-						}
-
-						const httpsAgent = createHttpsAgent(apiUrl, allowInsecureEnterpriseCerts);
-
-						// More debug logging for SSL handling
-						if (baseUrl) {
-							logger.debug('HTTPS Agent created:', !!httpsAgent);
-							logger.debug('🔧 createHttpsAgent parameters:', {
-								url: apiUrl,
-								allowInsecureEnterpriseCerts: allowInsecureEnterpriseCerts,
-								isEnterprise: !apiUrl.includes('github.com')
-							});
-							if (httpsAgent) {
-								logger.debug('HTTPS Agent options:', {
-									rejectUnauthorized: (httpsAgent as any).options?.rejectUnauthorized,
-									checkServerIdentity: !!(httpsAgent as any).options?.checkServerIdentity
-								});
-							} else {
-								logger.warn('❌ HTTPS Agent is undefined - checking createHttpsAgent logic');
-							}
-						}
-
-						const axiosConfig: any = {
-							headers: headers,
-							timeout: 10000, // Increased timeout for enterprise
-							// For enterprise GitHub, allow cookies for authentication
-							withCredentials: !!baseUrl
-						};
-
-						// Apply SSL configuration for enterprise GitHub
-						if (baseUrl) {
-							if (httpsAgent) {
-								axiosConfig.httpsAgent = httpsAgent;
-								// Ensure axios uses the custom agent
-								axiosConfig.agent = httpsAgent;
-								logger.debug('✅ HTTPS Agent applied to axios config');
-							} else {
-								logger.debug('❌ No HTTPS Agent created - will use default (secure) TLS');
-							}
-						}
-
-
 						try {
-							let resp;
-							if (baseUrl && allowInsecureEnterpriseCerts) {
-								// Temporary global TLS override for this specific enterprise request
-								logger.trace('🔧 [WORKAROUND] Applying global TLS override for enterprise GitHub request');
-								const originalRejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-								process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
-								try {
-									resp = await axios.get(apiUrl, axiosConfig);
-									logger.trace('🔧 [WORKAROUND] Enterprise request succeeded with global TLS override');
-								} finally {
-									// Restore original setting immediately
-									if (originalRejectUnauthorized === undefined) {
-										delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-									} else {
-										process.env.NODE_TLS_REJECT_UNAUTHORIZED = originalRejectUnauthorized;
-									}
-									logger.trace('🔧 [WORKAROUND] TLS validation restored');
-								}
-							} else {
-								resp = await axios.get(apiUrl, axiosConfig);
-							}
-							
-							// Check if response contains valid directory content
-							return Array.isArray(resp.data) && resp.data.length > 0;
+							const contents = await githubService.getDirectoryContents(repoSource, cat);
+							return Array.isArray(contents) && contents.length > 0;
 						} catch (error: any) {
-							// If 404, folder doesn't exist - that's okay for our flexible validation
-							if (error.response?.status === 404) {
-								return false;
-							}
-							// Re-throw other errors (auth, network, etc.)
-							throw error;
+							return false;
 						}
 					};
 
@@ -331,8 +206,6 @@ export async function activate(context: vscode.ExtensionContext) {
 						throw new Error(`Repository does not contain any of the required folders: ${cats.join(', ')}`);
 					}
 
-					// Create repo source object with baseUrl if needed
-					const repoSource = baseUrl ? { owner, repo, baseUrl } : { owner, repo };
 					sources.push(repoSource);
 					await RepoStorage.setSources(context, sources);
 
@@ -470,13 +343,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}
 	});
-
-	// Initialize services
-	const statusBarManager = new StatusBarManager();
-	const githubService = new GitHubService(statusBarManager);
-	const downloadTracker = new DownloadTracker(context);
-	const treeProvider = new AwesomeCopilotProvider(githubService, context, downloadTracker);
-	const previewProvider = new CopilotPreviewProvider();
 
 	// Initialize repository sources from settings
 	await RepoStorage.initializeFromSettings(context);
