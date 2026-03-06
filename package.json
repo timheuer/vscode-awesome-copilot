@@ -226,11 +226,10 @@
       }
     ],
     "views": {
-      "explorer": [
+      "awesomeCopilot": [
         {
           "id": "awesomeCopilotExplorer",
-          "name": "Awesome Copilot",
-          "icon": "$(robot)"
+          "name": "Awesome Copilot"
         }
       ]
     },
