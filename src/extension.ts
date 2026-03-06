@@ -219,7 +219,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					});
 
 					const displayUrl = baseUrl ? `${baseUrl}/${owner}/${repo}` : `${owner}/${repo}`;
-					
+
 					// Create success message with found folders
 					let successMessage = `✅ Successfully added: ${displayUrl}`;
 					if (foundFolders.length > 0) {
@@ -228,8 +228,9 @@ export async function activate(context: vscode.ExtensionContext) {
 							successMessage += `\n⚠️ Missing folders: ${missingFolders.join(', ')} (optional)`;
 						}
 					}
-					
-					statusBarManager.showSuccess(`✅ Successfully added: ${displayUrl}`);				} catch (err: any) {
+
+					statusBarManager.showSuccess(`✅ Successfully added: ${displayUrl}`);
+				} catch (err: any) {
 					// Enhanced error handling with detailed diagnostics
 					const errorMessage = (err && err.message) || err;
 					const statusCode = err.response?.status;
@@ -377,8 +378,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// The commandId parameter must match the command field in package.json
 
 	// Register refresh command
-	const refreshDisposable = vscode.commands.registerCommand('awesome-copilot.refreshAwesomeCopilot', () => {
-		treeProvider.refresh();
+	const refreshDisposable = vscode.commands.registerCommand('awesome-copilot.refreshAwesomeCopilot', async () => {
+		await treeProvider.refresh();
 		statusBarManager.showSuccess('Refreshed Awesome Copilot data');
 	});
 
@@ -407,7 +408,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage('No repository selected for removal');
 			return;
 		}
-		
+
 		if (treeItem.itemType !== 'repo' || !treeItem.repo) {
 			vscode.window.showErrorMessage('Invalid repository selection for removal');
 			return;
@@ -443,17 +444,15 @@ export async function activate(context: vscode.ExtensionContext) {
 			vscode.window.showErrorMessage('No repository selected for refresh');
 			return;
 		}
-		
+
 		if (treeItem.itemType !== 'repo' || !treeItem.repo) {
 			vscode.window.showErrorMessage('Invalid repository selection for refresh');
 			return;
 		}
 
 		const repo = treeItem.repo;
-		// Clear cache for this specific repository only
-		githubService.clearRepoCache(repo);
 		// Refresh only this specific repository in the tree view
-		treeProvider.refreshRepo(repo);
+		await treeProvider.refreshRepo(repo);
 		statusBarManager.showSuccess(`Refreshed repository: ${repo.owner}/${repo.repo}`);
 	});
 
@@ -602,8 +601,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		);
 
 		if (selected) {
-			const repoUrl = selected.repo.baseUrl 
-				? `${selected.repo.baseUrl}/${selected.repo.owner}/${selected.repo.repo}` 
+			const repoUrl = selected.repo.baseUrl
+				? `${selected.repo.baseUrl}/${selected.repo.owner}/${selected.repo.repo}`
 				: `https://github.com/${selected.repo.owner}/${selected.repo.repo}`;
 			await vscode.env.openExternal(vscode.Uri.parse(repoUrl));
 		}
@@ -690,7 +689,7 @@ async function downloadCopilotItem(item: CopilotItem, githubService: GitHubServi
 					// Calculate relative path within the skill folder
 					// Remove the skill folder path prefix to get the relative path
 					const skillFolderPath = item.file.path.endsWith('/') ? item.file.path : item.file.path + '/';
-					const relativePath = fileItem.path.startsWith(skillFolderPath) 
+					const relativePath = fileItem.path.startsWith(skillFolderPath)
 						? fileItem.path.substring(skillFolderPath.length)
 						: fileItem.path;
 					const targetFilePath = path.join(targetSkillPath, relativePath);
@@ -794,20 +793,20 @@ async function previewCopilotItem(item: CopilotItem, githubService: GitHubServic
 		if (item.category === CopilotCategory.Skills && item.file.type === 'dir') {
 			// Get the contents of the skill folder
 			const contents = await githubService.getDirectoryContents(item.repo, item.file.path);
-			
+
 			// Find SKILL.md file
 			const skillMdFile = contents.find(f => f.name === 'SKILL.md' && f.type === 'file');
-			
+
 			if (skillMdFile) {
 				// Fetch SKILL.md content
 				item.content = await githubService.getFileContent(skillMdFile.download_url);
-				
+
 				// Create and show preview document
 				const previewUri = vscode.Uri.parse(`copilot-preview:${encodeURIComponent(item.name + '/SKILL.md')}`);
-				
+
 				// Set the item content in the preview provider
 				previewProvider.setItem(previewUri, item);
-				
+
 				const doc = await vscode.workspace.openTextDocument(previewUri);
 				await vscode.window.showTextDocument(doc, { preview: true });
 			} else {
@@ -816,18 +815,18 @@ async function previewCopilotItem(item: CopilotItem, githubService: GitHubServic
 				const fileList = contents
 					.filter(f => f.type === 'file')
 					.map(f => {
-						const relativePath = f.path.startsWith(skillFolderPath) 
+						const relativePath = f.path.startsWith(skillFolderPath)
 							? f.path.substring(skillFolderPath.length)
 							: f.path;
 						return `- ${relativePath}`;
 					})
 					.join('\n');
-				
+
 				item.content = `# ${item.name}\n\n**Skill Folder Contents:**\n\n${fileList}\n\nDownload this skill to get all files.`;
-				
+
 				const previewUri = vscode.Uri.parse(`copilot-preview:${encodeURIComponent(item.name)}`);
 				previewProvider.setItem(previewUri, item);
-				
+
 				const doc = await vscode.workspace.openTextDocument(previewUri);
 				await vscode.window.showTextDocument(doc, { preview: true });
 			}

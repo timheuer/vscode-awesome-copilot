@@ -130,7 +130,7 @@
         },
         "awesome-copilot.logLevel": {
           "type": "string",
-          "enum": ["error", "warn", "info", "debug", "trace"],
+          "enum": [ "error", "warn", "info", "debug", "trace" ],
           "enumDescriptions": [
             "Only show error messages",
             "Show warnings and errors",
@@ -155,6 +155,7 @@
       {
         "command": "awesome-copilot.refreshAwesomeCopilot",
         "title": "Refresh",
+        "category": "Awesome Copilot",
         "icon": "$(refresh)"
       },
       {
@@ -180,6 +181,7 @@
       {
         "command": "awesome-copilot.refreshRepo",
         "title": "Refresh Repository",
+        "category": "Awesome Copilot",
         "icon": "$(refresh)"
       },
       {

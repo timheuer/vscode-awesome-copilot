@@ -35,7 +35,7 @@ export class AwesomeCopilotTreeItem extends vscode.TreeItem {
 
         if (itemType === 'file' && copilotItem) {
             this.contextValue = 'copilotFile';
-            
+
             // Skills are folders, not individual files
             if (copilotItem.category === CopilotCategory.Skills && copilotItem.file.type === 'dir') {
                 this.description = 'Skill Folder';
@@ -86,6 +86,14 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
     private _onDidChangeTreeData: vscode.EventEmitter<AwesomeCopilotTreeItem | undefined | null | void> = new vscode.EventEmitter<AwesomeCopilotTreeItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<AwesomeCopilotTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
+    private static readonly categories: CopilotCategory[] = [
+        CopilotCategory.ChatModes,
+        CopilotCategory.Instructions,
+        CopilotCategory.Prompts,
+        CopilotCategory.Agents,
+        CopilotCategory.Skills
+    ];
+
     private repoItems: Map<string, Map<CopilotCategory, CopilotItem[]>> = new Map();
     private loading: Set<string> = new Set();
     private context: vscode.ExtensionContext | undefined;
@@ -96,7 +104,9 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         this.downloadTracker = downloadTracker;
     }
 
-    refresh(): void {
+    async refresh(): Promise<void> {
+        getLogger().info('Refreshing all Awesome Copilot repositories');
+
         // Clear all cached data
         this.repoItems.clear();
         this.loading.clear();
@@ -105,15 +115,17 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         this._onDidChangeTreeData.fire();
 
         // Reload data for current repositories
-        this.loadAllReposAndCategories(true);
+        await this.loadAllReposAndCategories(true);
     }
 
     // Refresh only a specific repository in the tree
-    refreshRepo(repo: RepoSource): void {
+    async refreshRepo(repo: RepoSource): Promise<void> {
+        getLogger().info(`Refreshing repository: ${repo.owner}/${repo.repo}`);
+
         // Find and remove cached data for this specific repo
         const repoKey = `${repo.owner}/${repo.repo}`;
         this.repoItems.delete(repoKey);
-        
+
         // Clear loading states for this repo
         const loadingKeysToDelete = Array.from(this.loading).filter(key => key.startsWith(`${repoKey}-`));
         loadingKeysToDelete.forEach(key => this.loading.delete(key));
@@ -121,44 +133,68 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         // Find the tree item for this repository
         const repos = this.context ? RepoStorage.getSources(this.context) : [{ owner: 'github', repo: 'awesome-copilot', label: 'Awesome Copilot' }];
         const targetRepo = repos.find(r => r.owner === repo.owner && r.repo === repo.repo && (r.baseUrl || 'github.com') === (repo.baseUrl || 'github.com'));
-        
-        if (targetRepo) {
-            // Create the tree item for this repo
-            const repoTreeItem = new AwesomeCopilotTreeItem(
-                targetRepo.label || `${targetRepo.owner}/${targetRepo.repo}`,
-                vscode.TreeItemCollapsibleState.Expanded,
-                'repo',
-                undefined,
-                undefined,
-                targetRepo
-            );
 
-            // Fire change event for just this repository tree item
-            this._onDidChangeTreeData.fire(repoTreeItem);
+        if (targetRepo) {
+            // Fire a full tree refresh so the visible repo node re-queries its children
+            this._onDidChangeTreeData.fire();
 
             // Preload the data for this repository
-            this.loadSingleRepo(targetRepo, true);
+            await this.loadSingleRepo(targetRepo, true);
+
+            // Fire again after load completion so the tree repopulates immediately
+            this._onDidChangeTreeData.fire();
         }
+    }
+
+    private createCategoryTreeItem(repo: RepoSource, category: CopilotCategory): AwesomeCopilotTreeItem {
+        return new AwesomeCopilotTreeItem(
+            CATEGORY_LABELS[category],
+            vscode.TreeItemCollapsibleState.Collapsed,
+            'category',
+            undefined,
+            category,
+            repo
+        );
+    }
+
+    private logRepoCategoryCounts(repo: RepoSource, repoData: Map<CopilotCategory, CopilotItem[]>): void {
+        const summary = AwesomeCopilotProvider.categories
+            .map(category => `${category}=${repoData.get(category)?.length ?? 0}`)
+            .join(', ');
+
+        getLogger().info(`Loaded category counts for ${repo.owner}/${repo.repo}: ${summary}`);
+    }
+
+    private getVisibleCategories(repo: RepoSource): CopilotCategory[] {
+        const repoKey = `${repo.owner}/${repo.repo}`;
+        const repoData = this.repoItems.get(repoKey);
+
+        return AwesomeCopilotProvider.categories.filter(category => {
+            const items = repoData?.get(category) ?? [];
+            const loadingKey = `${repoKey}-${category}`;
+            return this.loading.has(loadingKey) || items.length > 0;
+        });
     }
 
     // Load data for a single repository
     private async loadSingleRepo(repo: RepoSource, forceRefresh: boolean = false): Promise<void> {
         const repoKey = `${repo.owner}/${repo.repo}`;
+        getLogger().info(`Loading categories for ${repoKey}${forceRefresh ? ' (force refresh)' : ''}`);
+
         if (!this.repoItems.has(repoKey)) {
             this.repoItems.set(repoKey, new Map());
         }
 
         const repoData = this.repoItems.get(repoKey)!;
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents, CopilotCategory.Skills];
 
         const allItems: CopilotItem[] = [];
 
-        for (const category of categories) {
+        for (const category of AwesomeCopilotProvider.categories) {
             const loadingKey = `${repoKey}-${category}`;
-            
+
             if (!this.loading.has(loadingKey)) {
                 this.loading.add(loadingKey);
-                
+
                 try {
                     const files = await this.githubService.getFilesByRepo(repo, category, forceRefresh);
                     const items = files.map((file: GitHubFile) => ({
@@ -173,20 +209,23 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 } catch (error: any) {
                     // Handle different types of errors
                     const statusCode = error?.response?.status || (error?.message?.includes('404') ? 404 : undefined);
-                    
+
                     if (statusCode === 404) {
                         // 404 is expected when a repository doesn't have a particular category folder
                         repoData.set(category, []);
                         getLogger().debug(`Category '${category}' not found in ${repoKey} (this is normal)`);
                     } else {
-                        // Show error for other types of errors (auth, network, etc.)
-                        getLogger().error(`Failed to load ${category} from ${repoKey}: ${error}`);
+                        repoData.set(category, []);
+                        getLogger().debug(`Failed to load ${category} from ${repoKey}: ${error}`);
                     }
                 } finally {
                     this.loading.delete(loadingKey);
                 }
             }
         }
+
+        this.logRepoCategoryCounts(repo, repoData);
+        getLogger().info(`Finished loading categories for ${repoKey}`);
 
         // Fire change event to update UI for this repo after all categories are loaded
         this._onDidChangeTreeData.fire();
@@ -216,49 +255,22 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
         }
 
         if (element.itemType === 'repo' && element.repo) {
-            // Return categories for this repository
-            return [
-                new AwesomeCopilotTreeItem(
-                    CATEGORY_LABELS[CopilotCategory.ChatModes],
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                    'category',
-                    undefined,
-                    CopilotCategory.ChatModes,
-                    element.repo
-                ),
-                new AwesomeCopilotTreeItem(
-                    CATEGORY_LABELS[CopilotCategory.Instructions],
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                    'category',
-                    undefined,
-                    CopilotCategory.Instructions,
-                    element.repo
-                ),
-                new AwesomeCopilotTreeItem(
-                    CATEGORY_LABELS[CopilotCategory.Prompts],
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                    'category',
-                    undefined,
-                    CopilotCategory.Prompts,
-                    element.repo
-                ),
-                new AwesomeCopilotTreeItem(
-                    CATEGORY_LABELS[CopilotCategory.Agents],
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                    'category',
-                    undefined,
-                    CopilotCategory.Agents,
-                    element.repo
-                ),
-                new AwesomeCopilotTreeItem(
-                    CATEGORY_LABELS[CopilotCategory.Skills],
-                    vscode.TreeItemCollapsibleState.Collapsed,
-                    'category',
-                    undefined,
-                    CopilotCategory.Skills,
-                    element.repo
-                )
-            ];
+            const repoKey = `${element.repo.owner}/${element.repo.repo}`;
+            const repoData = this.repoItems.get(repoKey);
+            const hasLoadedCategories = repoData && AwesomeCopilotProvider.categories.some(category => repoData.has(category));
+            const hasActiveLoad = AwesomeCopilotProvider.categories.some(category => this.loading.has(`${repoKey}-${category}`));
+
+            if (!hasLoadedCategories && !hasActiveLoad) {
+                getLogger().trace(`Loading category listings for ${repoKey} on tree expansion`);
+                await this.loadSingleRepo(element.repo);
+            }
+
+            const visibleCategories = this.getVisibleCategories(element.repo);
+            getLogger().info(
+                `Visible tree categories for ${repoKey}: ${visibleCategories.length > 0 ? visibleCategories.join(', ') : 'none'}`
+            );
+
+            return visibleCategories.map(category => this.createCategoryTreeItem(element.repo!, category));
         }
 
         if (element.itemType === 'category' && element.category && element.repo) {
@@ -307,15 +319,15 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
             } catch (error: any) {
                 // Handle different types of errors
                 const statusCode = error?.response?.status || (error?.message?.includes('404') ? 404 : undefined);
-                
+
                 if (statusCode === 404) {
                     // 404 is expected when a repository doesn't have a particular category folder
                     // Set empty array and don't show error to user
                     repoData.set(category, []);
                     getLogger().debug(`Category '${category}' not found in ${repoKey} (this is normal)`);
                 } else {
-                    // Show error for other types of errors (auth, network, etc.)
-                    vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
+                    repoData.set(category, []);
+                    getLogger().debug(`Failed to load ${category} from ${repoKey}: ${error}`);
                 }
                 return [];
             } finally {
@@ -331,8 +343,9 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
             return;
         }
 
+        getLogger().info(`Loading all repositories${forceRefresh ? ' (force refresh)' : ''}`);
+
         const repos = RepoStorage.getSources(this.context);
-        const categories = [CopilotCategory.ChatModes, CopilotCategory.Instructions, CopilotCategory.Prompts, CopilotCategory.Agents, CopilotCategory.Skills];
 
         // Collect all items for update checking
         const allItems: CopilotItem[] = [];
@@ -345,7 +358,7 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
 
             const repoData = this.repoItems.get(repoKey)!;
 
-            for (const category of categories) {
+            for (const category of AwesomeCopilotProvider.categories) {
                 try {
                     const files = await this.githubService.getFilesByRepo(repo, category, forceRefresh);
                     const items = files.map((file: GitHubFile) => ({
@@ -360,21 +373,24 @@ export class AwesomeCopilotProvider implements vscode.TreeDataProvider<AwesomeCo
                 } catch (error: any) {
                     // Handle different types of errors
                     const statusCode = error?.response?.status || (error?.message?.includes('404') ? 404 : undefined);
-                    
+
                     if (statusCode === 404) {
                         // 404 is expected when a repository doesn't have a particular category folder
                         // Set empty array and don't show error to user
                         repoData.set(category, []);
                         getLogger().debug(`Category '${category}' not found in ${repoKey} (this is normal)`);
                     } else {
-                        // Show error for other types of errors (auth, network, etc.)
-                        vscode.window.showErrorMessage(`Failed to load ${category} from ${repoKey}: ${error}`);
+                        repoData.set(category, []);
+                        getLogger().debug(`Failed to load ${category} from ${repoKey}: ${error}`);
                     }
                 }
             }
+
+            this.logRepoCategoryCounts(repo, repoData);
         }
 
         this._onDidChangeTreeData.fire();
+        getLogger().info('Finished loading all repositories');
 
         // Check for updates if setting is enabled
         await this.checkForUpdates(allItems);
