@@ -467,8 +467,8 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (!value || value.trim() === '') {
 					return 'Token cannot be empty';
 				}
-				if (!value.startsWith('ghp_') && !value.startsWith('gho_') && !value.startsWith('ghu_')) {
-					return 'Invalid token format. GitHub tokens typically start with ghp_, gho_, or ghu_';
+				if (!value.startsWith('ghp_') && !value.startsWith('gho_') && !value.startsWith('ghu_') && !value.startsWith('github_pat_')) {
+					return 'Invalid token format. GitHub tokens typically start with ghp_, gho_, ghu_, or github_pat_';
 				}
 				return null;
 			}
